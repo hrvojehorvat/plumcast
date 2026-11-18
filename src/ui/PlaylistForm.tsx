@@ -72,7 +72,8 @@ export function PlaylistForm({ edited }: { edited: Playlist | null }) {
       const file = await pickM3uFile();
       if (file) patch({ file });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      console.warn('Plumcast could not read the chosen file', e);
+      setError(t('playlist.fileError'));
     }
   }
 

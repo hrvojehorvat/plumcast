@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, formatDate, formatNumber } from './format';
+import { ago, formatDate, formatNumber, formatTime } from './format';
 
 describe('format', () => {
   it('ago picks the right unit', () => {
@@ -14,5 +14,10 @@ describe('format', () => {
     expect(formatNumber(12345, 'de')).toBe('12.345');
     expect(formatNumber(12345, 'en')).toBe('12,345');
     expect(formatDate(Date.UTC(2027, 2, 5, 12), 'de')).toMatch(/5\. März 2027/);
+  });
+
+  it('formats clock times with two digits', () => {
+    expect(formatTime(new Date(2027, 0, 1, 7, 5).getTime())).toBe('07:05');
+    expect(formatTime(new Date(2027, 0, 1, 20, 15).getTime())).toBe('20:15');
   });
 });

@@ -21,13 +21,22 @@ export const ICONS = {
   alert: 'M12 3 2 21h20zM12 10v5M12 18h.01',
   stop: 'M6 6h12v12H6z',
   chevron: 'M9 6l6 6-6 6',
+  star: 'M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z',
+  undo: 'M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3',
+  up: 'M6 15l6-6 6 6',
+  down: 'M6 9l6 6 6-6',
+  close: 'M6 6l12 12M18 6 6 18',
+  eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
+  eyeOff: 'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3 3.7M6.6 6.6C3.8 8.4 2 12 2 12s4 7 10 7a9.6 9.6 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2',
+  play: 'M7 4l13 8-13 8z',
+  archive: 'M12 7v5l3 2M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5',
 } as const;
 
 export type IconName = keyof typeof ICONS;
 
-export function Icon({ name, size = 22, color, strokeWidth = 2 }: { name: IconName; size?: number; color: string; strokeWidth?: number }) {
+export function Icon({ name, size = 22, color, strokeWidth = 2, filled }: { name: IconName; size?: number; color: string; strokeWidth?: number; filled?: boolean }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={name === 'more' ? 3 : strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : 'none'} stroke={color} strokeWidth={name === 'more' ? 3 : strokeWidth} strokeLinecap="round" strokeLinejoin="round">
       <Path d={ICONS[name]} />
     </Svg>
   );

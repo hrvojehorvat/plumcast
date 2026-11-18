@@ -25,8 +25,15 @@ export default function Home() {
   if (state.storageError) {
     return (
       <Screen title={t('nav.home')}>
-        <Text color="#ffc9c9">{t('home.storageError')}</Text>
-        <Text size={13} color={colors.textFaint}>{state.storageError}</Text>
+        <Text weight="semibold" size={20}>{t('home.storageError')}</Text>
+        <Text size={16} color={colors.textSoft} style={styles.intro}>
+          {t(state.storageError === 'locked' ? 'home.storageLocked' : 'home.storageHint')}
+        </Text>
+        <Row>
+          <DefaultFocus>
+            <Button variant="primary" icon="refresh" label={t('common.retry')} onPress={() => void playlists.init()} />
+          </DefaultFocus>
+        </Row>
       </Screen>
     );
   }

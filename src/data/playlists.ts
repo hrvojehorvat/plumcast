@@ -1,5 +1,6 @@
 import type { AccountInfo, Catalog, CatalogCounts, PlaylistDraft, PlaylistKind } from '../core/models';
 import { countCatalog } from '../core/models';
+import { foldSearch } from '../core/search';
 import { getDb, getSetting, insertMany, setSetting } from './db';
 import { deleteSecret, readSecret, writeSecret } from './secrets';
 
@@ -113,20 +114,20 @@ async function writeCatalog(id: number, catalog: Catalog, now: number) {
     await insertMany(
       db,
       'live',
-      ['playlist_id', 'id', 'num', 'name', 'logo', 'category_id', 'epg_id', 'archive', 'archive_days', 'url', 'catchup', 'sort'],
-      catalog.live.map((c, i) => [id, c.id, c.num, c.name, c.logo, c.categoryId, c.epgId, c.archive ? 1 : 0, c.archiveDays, c.url, c.catchup ? JSON.stringify(c.catchup) : null, i]),
+      ['playlist_id', 'id', 'num', 'name', 'logo', 'category_id', 'epg_id', 'archive', 'archive_days', 'url', 'catchup', 'sort', 'search'],
+      catalog.live.map((c, i) => [id, c.id, c.num, c.name, c.logo, c.categoryId, c.epgId, c.archive ? 1 : 0, c.archiveDays, c.url, c.catchup ? JSON.stringify(c.catchup) : null, i, foldSearch(c.name)]),
     );
     await insertMany(
       db,
       'movies',
-      ['playlist_id', 'id', 'name', 'logo', 'category_id', 'ext', 'rating', 'added_at', 'url', 'sort'],
-      catalog.movies.map((m, i) => [id, m.id, m.name, m.logo, m.categoryId, m.ext, m.rating, m.addedAt, m.url, i]),
+      ['playlist_id', 'id', 'name', 'logo', 'category_id', 'ext', 'rating', 'added_at', 'url', 'sort', 'search'],
+      catalog.movies.map((m, i) => [id, m.id, m.name, m.logo, m.categoryId, m.ext, m.rating, m.addedAt, m.url, i, foldSearch(m.name)]),
     );
     await insertMany(
       db,
       'series',
-      ['playlist_id', 'id', 'name', 'cover', 'category_id', 'rating', 'plot', 'year', 'sort'],
-      catalog.series.map((s, i) => [id, s.id, s.name, s.cover, s.categoryId, s.rating, s.plot, s.year, i]),
+      ['playlist_id', 'id', 'name', 'cover', 'category_id', 'rating', 'plot', 'year', 'sort', 'search'],
+      catalog.series.map((s, i) => [id, s.id, s.name, s.cover, s.categoryId, s.rating, s.plot, s.year, i, foldSearch(s.name)]),
     );
     await db.runAsync(
       'UPDATE playlists SET epg_url = ?, account = ?, counts = ?, synced_at = ? WHERE id = ?',

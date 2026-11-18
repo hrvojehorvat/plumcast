@@ -32,7 +32,19 @@
         }
       ],
       "expo-sqlite",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "react-native-video",
+        {
+          "enableAndroidPictureInPicture": false,
+          "androidExtensions": {
+            "useExoplayerRtsp": false,
+            "useExoplayerSmoothStreaming": false,
+            "useExoplayerHls": true,
+            "useExoplayerDash": false
+          }
+        }
+      ]
     ],
     "scheme": "plumcast",
     "backgroundColor": "#0c0a12"

@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SpatialNavigationRoot, SpatialNavigationView } from 'react-tv-space-navigation';
 import { playlists } from '../data/store';
+import { LivePlayerHost } from '../player/LivePlayer';
 import { I18nProvider } from '../ui/i18n';
 import { configureRemote } from '../ui/remote';
 import { Sidebar } from '../ui/Sidebar';
@@ -40,6 +41,7 @@ function Shell() {
         </View>
         {wide ? null : <TabBar />}
       </SpatialNavigationView>
+      <LivePlayerHost />
     </SpatialNavigationRoot>
   );
 }

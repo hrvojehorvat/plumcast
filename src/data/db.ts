@@ -1,16 +1,39 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 let dbPromise: Promise<SQLiteDatabase> | null = null;
 
-/** The one app database (catalog, playlists, settings). Opened and migrated once. */
+/** The one app database (catalog, playlists, settings). Opened and migrated once; a failed open can be retried. */
 export function getDb(): Promise<SQLiteDatabase> {
-  dbPromise ??= openDatabaseAsync('plumcast.db').then(async (db) => {
-    await migrate(db);
-    return db;
+  dbPromise ??= openWithRetry().catch((error: unknown) => {
+    dbPromise = null;
+    throw error;
   });
   return dbPromise;
+}
+
+/**
+ * In the browser the database file can be held by only one tab. Right after a reload the old page may
+ * still hold it for a moment, so a "locked" open is tried a few more times before giving up.
+ */
+async function openWithRetry(): Promise<SQLiteDatabase> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const db = await openDatabaseAsync('plumcast.db');
+      await migrate(db);
+      return db;
+    } catch (error) {
+      if (!isStorageLocked(error) || attempt >= 4) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+    }
+  }
+}
+
+/** True when another browser tab (or a page that is still closing) holds the database file. */
+export function isStorageLocked(error: unknown): boolean {
+  const text = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+  return /access handle|NoModificationAllowed|database is locked/i.test(text);
 }
 
 async function migrate(db: SQLiteDatabase) {
@@ -87,6 +110,39 @@ async function migrate(db: SQLiteDatabase) {
           PRIMARY KEY (playlist_id, id)
         );
         CREATE INDEX series_by_category ON series (playlist_id, category_id, sort);
+      `);
+    }
+    if (version < 2) {
+      // Per-playlist preferences survive a re-sync because they key on the provider's ids.
+      await db.execAsync(`
+        CREATE TABLE favorites (
+          playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          item_id TEXT NOT NULL,
+          added_at INTEGER NOT NULL,
+          PRIMARY KEY (playlist_id, kind, item_id)
+        );
+        CREATE TABLE recents (
+          playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          item_id TEXT NOT NULL,
+          watched_at INTEGER NOT NULL,
+          PRIMARY KEY (playlist_id, kind, item_id)
+        );
+        CREATE TABLE category_prefs (
+          playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          category_id TEXT NOT NULL,
+          hidden INTEGER NOT NULL DEFAULT 0,
+          position INTEGER,
+          PRIMARY KEY (playlist_id, kind, category_id)
+        );
+        ALTER TABLE live ADD COLUMN search TEXT NOT NULL DEFAULT '';
+        ALTER TABLE movies ADD COLUMN search TEXT NOT NULL DEFAULT '';
+        ALTER TABLE series ADD COLUMN search TEXT NOT NULL DEFAULT '';
+        UPDATE live SET search = lower(name);
+        UPDATE movies SET search = lower(name);
+        UPDATE series SET search = lower(name);
       `);
     }
     await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);

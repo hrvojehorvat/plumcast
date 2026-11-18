@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { toPlaylistError, type PlaylistError } from '../core/errors';
 import { isStale } from '../core/playlistForm';
 import type { PlaylistDraft } from '../core/models';
+import { isStorageLocked } from './db';
 import * as db from './playlists';
 import type { Playlist } from './playlists';
 import { draftSource, fetchCatalog, savedSource, type SyncProgress } from './sync';
@@ -9,8 +10,8 @@ import { draftSource, fetchCatalog, savedSource, type SyncProgress } from './syn
 /** App-wide playlist state. Screens read it with `usePlaylists()` and change it with `playlists.*`. */
 export interface PlaylistState {
   ready: boolean;
-  /** Set when the database couldn't be opened. */
-  storageError: string | null;
+  /** Set when the database couldn't be opened: "locked" = open in another browser tab. Details go to the console only. */
+  storageError: 'locked' | 'failed' | null;
   list: Playlist[];
   activeId: number | null;
   /** The running download. Only one at a time. `playlistId` is null while adding a new playlist. */
@@ -85,9 +86,11 @@ export const playlists = {
     initStarted = true;
     try {
       await reload();
-      set({ ready: true });
+      set({ ready: true, storageError: null });
     } catch (error) {
-      set({ ready: true, storageError: error instanceof Error ? error.message : String(error) });
+      console.warn('Plumcast storage could not be opened', error);
+      initStarted = false;
+      set({ ready: true, storageError: isStorageLocked(error) ? 'locked' : 'failed' });
       return;
     }
     const active = activePlaylist();

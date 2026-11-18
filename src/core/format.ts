@@ -18,6 +18,12 @@ export function formatNumber(n: number, lang: Lang): string {
   }
 }
 
+/** Local clock time, 24-hour ("20:15"); all three UI languages use it. */
+export function formatTime(ms: number, _lang?: Lang): string {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 /** "How long ago" as a message key + count (Hermes has no Intl.RelativeTimeFormat). */
 export function ago(ms: number, now = Date.now()): { key: 'time.justNow' | 'time.minutes' | 'time.hours' | 'time.days'; n: number } {
   const minutes = Math.floor(Math.max(0, now - ms) / 60_000);

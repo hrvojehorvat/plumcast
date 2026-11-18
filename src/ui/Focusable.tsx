@@ -4,6 +4,9 @@ import { SpatialNavigationFocusableView } from 'react-tv-space-navigation';
 
 type Props = {
   onSelect?: () => void;
+  /** Remote focus arrived / left (TV and keyboard; not fired by touch). */
+  onFocus?: () => void;
+  onBlur?: () => void;
   style?: ViewStyle;
   accessibilityLabel?: string;
   children: (state: { isFocused: boolean }) => ReactElement;
@@ -16,9 +19,9 @@ const needsPress = Platform.OS !== 'web' && !Platform.isTV;
  * Anything the remote can move to. Use this instead of Pressable so D-pad focus works
  * on TV and in the browser, and taps still work on phones.
  */
-export function Focusable({ onSelect, style, accessibilityLabel, children }: Props) {
+export function Focusable({ onSelect, onFocus, onBlur, style, accessibilityLabel, children }: Props) {
   return (
-    <SpatialNavigationFocusableView onSelect={onSelect} style={style} viewProps={{ accessibilityLabel, accessibilityRole: 'button' }}>
+    <SpatialNavigationFocusableView onSelect={onSelect} onFocus={onFocus} onBlur={onBlur} style={style} viewProps={{ accessibilityLabel, accessibilityRole: 'button' }}>
       {(state) =>
         needsPress ? (
           <Pressable onPress={onSelect} accessibilityLabel={accessibilityLabel}>
