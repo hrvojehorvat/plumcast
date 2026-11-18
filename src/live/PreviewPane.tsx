@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { formatTime } from '../core/format';
+import { useTimeFormat } from '../ui/useTimeFormat';
 import type { Channel } from '../data/live';
 import { useNowNext } from '../data/epg';
 import type { Playlist } from '../data/playlists';
@@ -17,7 +17,8 @@ import { useStreamUrl } from './useLive';
  * `playing` is false while the full-screen player is open (one stream at a time).
  */
 export function PreviewPane({ playlist, channel, playing }: { playlist: Playlist; channel: Channel | null; playing: boolean }) {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
+  const formatTime = useTimeFormat();
   const url = useStreamUrl(playlist, playing ? channel : null);
   const info = useNowNext(playlist, channel?.id ?? null);
   const [state, setState] = useState<{ url: string | null; status: 'loading' | 'playing' | 'failed' }>({ url: null, status: 'loading' });
@@ -64,7 +65,7 @@ export function PreviewPane({ playlist, channel, playing }: { playlist: Playlist
           {info?.now ? (
             <View style={styles.block}>
               <Text weight="semibold" size={12} color={colors.accentLight}>
-                {t('live.now').toUpperCase()} · {formatTime(info.now.start, lang)}–{formatTime(info.now.end, lang)}
+                {t('live.now').toUpperCase()} · {formatTime(info.now.start)}–{formatTime(info.now.end)}
               </Text>
               <Text weight="semibold" size={17} numberOfLines={2}>{info.now.title}</Text>
               <View style={styles.track}><View style={[styles.fill, { width: `${Math.round(info.progress * 100)}%` }]} /></View>
@@ -78,7 +79,7 @@ export function PreviewPane({ playlist, channel, playing }: { playlist: Playlist
           {info?.next ? (
             <View style={styles.block}>
               <Text weight="semibold" size={12} color={colors.textMuted}>
-                {t('live.next').toUpperCase()} · {formatTime(info.next.start, lang)}
+                {t('live.next').toUpperCase()} · {formatTime(info.next.start)}
               </Text>
               <Text size={15} color={colors.textSoft} numberOfLines={1}>{info.next.title}</Text>
             </View>

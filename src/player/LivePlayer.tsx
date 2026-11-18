@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useLockSpatialNavigation } from 'react-tv-space-navigation';
-import { formatTime } from '../core/format';
+import { useTimeFormat } from '../ui/useTimeFormat';
 import { addRecent, channelByNumber, setFavorite } from '../data/live';
 import { useNowNext } from '../data/epg';
 import { usePlaylists } from '../data/store';
@@ -37,7 +37,7 @@ const freshPlayback = (url: string | null): Playback => ({ url, attempt: 0, play
 type Action = { key: string; icon: IconName; label: string; run: () => void; filled?: boolean };
 
 function LivePlayer({ session }: { session: LiveSession }) {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const { list: playlistList } = usePlaylists();
   const playlist = playlistList.find((p) => p.id === session.playlistId) ?? null;
   const channel = session.current;
@@ -178,7 +178,7 @@ function LivePlayer({ session }: { session: LiveSession }) {
 
   const now = info?.now;
   const next = info?.next;
-  const time = (ms: number) => formatTime(ms, lang);
+  const time = useTimeFormat();
 
   return (
     <View style={styles.root}>

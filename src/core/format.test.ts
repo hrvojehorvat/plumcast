@@ -20,4 +20,10 @@ describe('format', () => {
     expect(formatTime(new Date(2027, 0, 1, 7, 5).getTime())).toBe('07:05');
     expect(formatTime(new Date(2027, 0, 1, 20, 15).getTime())).toBe('20:15');
   });
+
+  it('formats 12-hour times', () => {
+    expect(formatTime(new Date(2027, 0, 1, 0, 5).getTime(), false)).toBe('12:05 AM');
+    expect(formatTime(new Date(2027, 0, 1, 12, 0).getTime(), false)).toBe('12:00 PM');
+    expect(formatTime(new Date(2027, 0, 1, 20, 15).getTime(), false)).toBe('8:15 PM');
+  });
 });

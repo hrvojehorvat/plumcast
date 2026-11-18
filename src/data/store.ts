@@ -3,6 +3,8 @@ import { toPlaylistError, type PlaylistError } from '../core/errors';
 import { isStale } from '../core/playlistForm';
 import type { PlaylistDraft } from '../core/models';
 import { isStorageLocked } from './db';
+import { forgetGuide } from './guide';
+import { loadPrefs } from './prefs';
 import * as db from './playlists';
 import type { Playlist } from './playlists';
 import { draftSource, fetchCatalog, savedSource, type SyncProgress } from './sync';
@@ -86,6 +88,7 @@ export const playlists = {
     initStarted = true;
     try {
       await reload();
+      await loadPrefs();
       set({ ready: true, storageError: null });
     } catch (error) {
       console.warn('Plumcast storage could not be opened', error);
@@ -113,6 +116,7 @@ export const playlists = {
       ? await withSync(id, async (signal, onProgress) => fetchCatalog(await draftSource(draft, fileText, saved), { signal, onProgress }))
       : null;
     await db.updatePlaylist(id, draft, catalog);
+    forgetGuide(id);
     if (state.syncError?.playlistId === id && catalog) set({ syncError: null });
     await reload();
   },
@@ -120,6 +124,7 @@ export const playlists = {
   async remove(id: number) {
     if (state.syncing?.playlistId === id) playlists.cancelSync();
     await db.deletePlaylist(id);
+    forgetGuide(id);
     if (state.syncError?.playlistId === id) set({ syncError: null });
     await reload();
   },

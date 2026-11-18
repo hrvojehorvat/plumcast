@@ -26,7 +26,7 @@ describe('validatePlaylistForm', () => {
     expect(result).toEqual({
       ok: true,
       needsSync: true,
-      draft: { name: 'tv.example.com', kind: 'xtream', server: 'http://tv.example.com:8080', username: 'anna', secret: { password: 'pw' } },
+      draft: { name: 'tv.example.com', kind: 'xtream', server: 'http://tv.example.com:8080', username: 'anna', secret: { password: 'pw', guideOverride: '' } },
     });
   });
 
@@ -49,6 +49,13 @@ describe('validatePlaylistForm', () => {
     const ok = validatePlaylistForm(form({ kind: 'm3u-file', file: { name: 'family.m3u8', text: '#EXTM3U' } }));
     expect(ok).toMatchObject({ ok: true, needsSync: true, draft: { name: 'family', kind: 'm3u-file' } });
     expect(validatePlaylistForm(form({ kind: 'm3u-file', name: 'X' }), { kind: 'm3u-file', server: null, username: null })).toMatchObject({ ok: true, needsSync: false });
+  });
+
+  it('checks the optional guide link and always passes it on (empty removes it)', () => {
+    const base = { server: 'tv.example.com', username: 'anna', password: 'pw' };
+    expect(validatePlaylistForm(form({ ...base, guideUrl: 'guide.xml' }))).toEqual({ ok: false, problem: 'guideUrl' });
+    expect(validatePlaylistForm(form({ ...base, guideUrl: ' https://epg.example/g.xml ' }))).toMatchObject({ ok: true, draft: { secret: { guideOverride: 'https://epg.example/g.xml' } } });
+    expect(validatePlaylistForm(form({ kind: 'm3u-file', file: { name: 'a.m3u', text: '' } }))).toMatchObject({ ok: true, draft: { secret: { guideOverride: '' } } });
   });
 
   it('asks for the new secret when the kind changes on edit', () => {

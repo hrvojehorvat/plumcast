@@ -18,10 +18,23 @@ export function formatNumber(n: number, lang: Lang): string {
   }
 }
 
-/** Local clock time, 24-hour ("20:15"); all three UI languages use it. */
-export function formatTime(ms: number, _lang?: Lang): string {
+/** Local clock time: "20:15", or "8:15 PM" with `clock24 = false`. */
+export function formatTime(ms: number, clock24 = true): string {
   const d = new Date(ms);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  if (clock24) return `${String(d.getHours()).padStart(2, '0')}:${minutes}`;
+  const h = d.getHours() % 12 || 12;
+  return `${h}:${minutes} ${d.getHours() < 12 ? 'AM' : 'PM'}`;
+}
+
+/** "Wed 18" style day label for the guide's day chips. */
+export function formatDay(ms: number, lang: Lang): string {
+  try {
+    return new Intl.DateTimeFormat(LOCALES[lang], { weekday: 'short', day: 'numeric', month: 'numeric' }).format(ms);
+  } catch {
+    const d = new Date(ms);
+    return `${d.getDate()}.${d.getMonth() + 1}.`;
+  }
 }
 
 /** "How long ago" as a message key + count (Hermes has no Intl.RelativeTimeFormat). */

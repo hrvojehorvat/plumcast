@@ -1,15 +1,20 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { nowNext, parseShortEpg, type NowNext, type Programme } from '../core/epg';
+import { shiftProgrammes } from '../core/guide';
 import { getJson } from '../core/http';
 import { apiUrl } from '../core/xtream';
+import { upcomingByChannel } from './guideDb';
 import { appFetch } from './net';
-import type { Playlist } from './playlists';
+import { readSecret, type Playlist } from './playlists';
+import { usePrefs } from './prefs';
 import { loginFor } from './session';
 
 /**
- * Now/next for channel rows, from Xtream's `get_short_epg`. Fetched lazily for rows that are
- * on screen, at most a few requests at a time, newest request first (the rows the user is
- * looking at now). M3U playlists get their guide from XMLTV in the TV guide phase.
+ * Now/next for channel rows. Xtream: from `get_short_epg` (small, always current), falling back
+ * to the stored guide. M3U, or a playlist with its own guide link: from the stored guide.
+ * Fetched lazily for rows that are on screen, at most a few at a time, newest request first
+ * (the rows the user is looking at now). Times are stored as sent; the user's guide offset is
+ * applied when they are read.
  */
 interface Entry {
   programmes: Programme[];
@@ -20,6 +25,7 @@ interface Entry {
 const MAX_PARALLEL = 4;
 const FRESH_MS = 2 * 60 * 60_000;
 const RETRY_FAILED_MS = 10 * 60_000;
+const MIN_REFETCH_MS = 60_000;
 
 const cache = new Map<string, Entry>();
 const listeners = new Map<string, Set<() => void>>();
@@ -34,11 +40,13 @@ function notify(key: string) {
 
 function needsFetch(entry: Entry | undefined, now: number): boolean {
   if (!entry) return true;
-  if (entry.failed) return now - entry.fetchedAt > RETRY_FAILED_MS;
-  if (now - entry.fetchedAt > FRESH_MS) return true;
-  // Ran out of programmes (the short EPG only covers a few hours).
+  const age = now - entry.fetchedAt;
+  if (entry.failed) return age > RETRY_FAILED_MS;
+  if (age < MIN_REFETCH_MS) return false;
+  if (age > FRESH_MS) return true;
+  // Ran out of programmes (the short EPG only covers a few hours). No guide at all: ask again later.
   const last = entry.programmes[entry.programmes.length - 1];
-  return !last || last.end < now;
+  return last ? last.end < now : age > RETRY_FAILED_MS;
 }
 
 function pump() {
@@ -54,18 +62,53 @@ function pump() {
   }
 }
 
+/** Xtream playlists use the short EPG unless the user set their own guide link. */
+const usesShortEpg = new WeakMap<Playlist, Promise<boolean>>();
+function shortEpgFor(playlist: Playlist): Promise<boolean> {
+  let p = usesShortEpg.get(playlist);
+  if (!p) {
+    p = playlist.kind === 'xtream' ? readSecret(playlist.id).then((s) => !s.guideOverride, () => true) : Promise.resolve(false);
+    usesShortEpg.set(playlist, p);
+  }
+  return p;
+}
+
+async function loadProgrammes(playlist: Playlist, channelId: string): Promise<Programme[]> {
+  if (await shortEpgFor(playlist)) {
+    try {
+      const login = await loginFor(playlist);
+      if (!login) throw new Error('no login');
+      const json = await getJson(appFetch, apiUrl(login, 'get_short_epg', { stream_id: channelId, limit: 8 }), { timeoutMs: 15_000 });
+      const list = parseShortEpg(json);
+      if (list.length) return list;
+    } catch (error) {
+      const stored = await upcomingByChannel(playlist.id, channelId, Date.now() - 6 * 3_600_000).catch(() => []);
+      if (stored.length) return stored;
+      throw error;
+    }
+  }
+  return upcomingByChannel(playlist.id, channelId, Date.now() - 6 * 3_600_000);
+}
+
+/** Drops cached programmes of a playlist (its guide was just downloaded again). */
+export function invalidateProgrammes(playlistId: number) {
+  for (const key of [...cache.keys()]) {
+    if (key.startsWith(`${playlistId}:`)) {
+      cache.delete(key);
+      notify(key);
+    }
+  }
+}
+
 function request(playlist: Playlist, channelId: string) {
   const key = keyOf(playlist.id, channelId);
-  if (playlist.kind !== 'xtream' || !needsFetch(cache.get(key), Date.now())) return;
+  if (!needsFetch(cache.get(key), Date.now())) return;
   queued.delete(key); // re-insert at the end = most recent
   queued.set(key, async () => {
     if (!needsFetch(cache.get(key), Date.now())) return;
     let entry: Entry;
     try {
-      const login = await loginFor(playlist);
-      if (!login) throw new Error('no login');
-      const json = await getJson(appFetch, apiUrl(login, 'get_short_epg', { stream_id: channelId, limit: 8 }), { timeoutMs: 15_000 });
-      entry = { programmes: parseShortEpg(json), fetchedAt: Date.now(), failed: false };
+      entry = { programmes: await loadProgrammes(playlist, channelId), fetchedAt: Date.now(), failed: false };
     } catch {
       entry = { programmes: cache.get(key)?.programmes ?? [], fetchedAt: Date.now(), failed: true };
     }
@@ -96,12 +139,17 @@ export function useProgrammes(playlist: Playlist | null, channelId: string | nul
     },
     () => (key ? cache.get(key) : undefined),
   );
+  // `entry` changes identity on refresh, which re-requests below only when the cache was dropped.
   useEffect(() => {
     if (!playlist || !channelId) return;
     request(playlist, channelId);
     return () => cancelEpgRequest(playlist.id, channelId);
-  }, [playlist, channelId]);
-  return entry?.programmes.length ? entry.programmes : null;
+  }, [playlist, channelId, entry]);
+  const { epgOffsetHours } = usePrefs();
+  return useMemo(
+    () => (entry?.programmes.length ? shiftProgrammes(entry.programmes, epgOffsetHours) : null),
+    [entry, epgOffsetHours],
+  );
 }
 
 /** Current time, ticking every `everyMs` (progress bars, "now" switching to the next show). */

@@ -1,6 +1,6 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 let dbPromise: Promise<SQLiteDatabase> | null = null;
 
@@ -143,6 +143,22 @@ async function migrate(db: SQLiteDatabase) {
         UPDATE live SET search = lower(name);
         UPDATE movies SET search = lower(name);
         UPDATE series SET search = lower(name);
+      `);
+    }
+    if (version < 3) {
+      // TV guide (XMLTV) programmes. `channel` is the guide's channel id (live.epg_id).
+      // epg_url is cleared: guide links can contain the login, so they now live in the secure store.
+      await db.execAsync(`
+        CREATE TABLE epg (
+          playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+          channel TEXT NOT NULL,
+          start INTEGER NOT NULL,
+          stop INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT
+        );
+        CREATE INDEX epg_by_channel ON epg (playlist_id, channel, start);
+        UPDATE playlists SET epg_url = NULL;
       `);
     }
     await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);

@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { MessageKey } from '../core/i18n';
 import type { PlaylistKind } from '../core/models';
 import { EMPTY_FORM, applyServerInput, validatePlaylistForm, type FormProblem, type PlaylistFormValues } from '../core/playlistForm';
 import { BROWSER_DEV, DEV_LOGIN } from '../data/net';
-import type { Playlist } from '../data/playlists';
+import { readSecret, type Playlist } from '../data/playlists';
 import { playlists, usePlaylists } from '../data/store';
 import { Button } from './Button';
 import { errorText } from './errorText';
@@ -77,6 +77,19 @@ export function PlaylistForm({ edited }: { edited: Playlist | null }) {
     }
   }
 
+  // The guide link is shown again when editing (unlike passwords), so it can be changed or removed.
+  useEffect(() => {
+    if (!edited) return;
+    let cancelled = false;
+    readSecret(edited.id).then(
+      (secret) => !cancelled && setValues((v) => (v.guideUrl ? v : { ...v, guideUrl: secret.guideOverride ?? '' })),
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [edited]);
+
   const busy = saving && !!syncing;
 
   return (
@@ -137,6 +150,16 @@ export function PlaylistForm({ edited }: { edited: Playlist | null }) {
           </Text>
         </View>
       )}
+
+      <TextField
+        label={t('playlist.guideUrl')}
+        placeholder="https://…/guide.xml"
+        keyboardType="url"
+        value={values.guideUrl}
+        onChangeText={(guideUrl) => patch({ guideUrl })}
+        hint={t('playlist.guideUrlHint')}
+        error={problemText('guideUrl')}
+      />
 
       {BROWSER_DEV && values.kind !== 'm3u-file' ? (
         <Text size={13} color={colors.textFaint} style={styles.hint}>

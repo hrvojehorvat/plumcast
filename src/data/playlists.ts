@@ -1,4 +1,4 @@
-import type { AccountInfo, Catalog, CatalogCounts, PlaylistDraft, PlaylistKind } from '../core/models';
+import type { AccountInfo, Catalog, CatalogCounts, PlaylistDraft, PlaylistKind, PlaylistSecret } from '../core/models';
 import { countCatalog } from '../core/models';
 import { foldSearch } from '../core/search';
 import { getDb, getSetting, insertMany, setSetting } from './db';
@@ -11,7 +11,6 @@ export interface Playlist {
   /** Xtream: the server URL. M3U URL: just the host, for display (the full URL is a secret). */
   server: string | null;
   username: string | null;
-  epgUrl: string | null;
   account: AccountInfo | null;
   counts: CatalogCounts | null;
   createdAt: number;
@@ -24,7 +23,6 @@ interface Row {
   kind: PlaylistKind;
   server: string | null;
   username: string | null;
-  epg_url: string | null;
   account: string | null;
   counts: string | null;
   created_at: number;
@@ -37,7 +35,6 @@ const fromRow = (r: Row): Playlist => ({
   kind: r.kind,
   server: r.server,
   username: r.username,
-  epgUrl: r.epg_url,
   account: r.account ? (JSON.parse(r.account) as AccountInfo) : null,
   counts: r.counts ? (JSON.parse(r.counts) as CatalogCounts) : null,
   createdAt: r.created_at,
@@ -61,7 +58,7 @@ export async function createPlaylist(draft: PlaylistDraft, catalog: Catalog, now
     id = result.lastInsertRowId;
     await writeCatalog(id, catalog, now);
   });
-  await writeSecret(id, draft.secret);
+  await writeSecret(id, withGuideUrl(draft.secret, catalog));
   return id;
 }
 
@@ -76,13 +73,30 @@ export async function updatePlaylist(id: number, draft: PlaylistDraft, catalog: 
     await db.runAsync('UPDATE playlists SET name = ?, kind = ?, server = ?, username = ? WHERE id = ?', draft.name, draft.kind, draft.server, draft.username, id);
     if (catalog) await writeCatalog(id, catalog, now);
   });
-  const keep = old?.kind === draft.kind ? await readSecret(id) : {};
-  await writeSecret(id, { ...keep, ...draft.secret });
+  const saved = await readSecret(id);
+  const keep = old?.kind === draft.kind ? saved : {};
+  const secret = { ...keep, ...draft.secret };
+  await writeSecret(id, catalog ? withGuideUrl(secret, catalog) : secret);
+  // A new guide link means the stored guide is from the old one: load it again next time.
+  if ((saved.guideOverride ?? '') !== (secret.guideOverride ?? '')) await clearGuide(id);
+}
+
+/** The playlist's own guide link (M3U `url-tvg`, Xtream xmltv.php) goes to the secure store, never SQLite. */
+function withGuideUrl(secret: PlaylistSecret, catalog: Catalog): PlaylistSecret {
+  return { ...secret, guideUrl: catalog.epgUrl ?? undefined };
+}
+
+/** Forgets the downloaded guide (the TV guide downloads it again when opened). */
+export async function clearGuide(id: number) {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM epg WHERE playlist_id = ?', id);
+  await setSetting(`guide:${id}`, null);
 }
 
 export async function deletePlaylist(id: number) {
   const db = await getDb();
   await db.runAsync('DELETE FROM playlists WHERE id = ?', id);
+  await setSetting(`guide:${id}`, null);
   await deleteSecret(id);
 }
 
@@ -101,6 +115,7 @@ export async function setActiveId(id: number | null) {
 export async function saveCatalog(id: number, catalog: Catalog, now = Date.now()) {
   const db = await getDb();
   await db.withTransactionAsync(() => writeCatalog(id, catalog, now));
+  await writeSecret(id, withGuideUrl(await readSecret(id), catalog));
 }
 
 /** The catalog writes; call inside a transaction. */
@@ -130,8 +145,8 @@ async function writeCatalog(id: number, catalog: Catalog, now: number) {
       catalog.series.map((s, i) => [id, s.id, s.name, s.cover, s.categoryId, s.rating, s.plot, s.year, i, foldSearch(s.name)]),
     );
     await db.runAsync(
-      'UPDATE playlists SET epg_url = ?, account = ?, counts = ?, synced_at = ? WHERE id = ?',
-      catalog.epgUrl, catalog.account ? JSON.stringify(catalog.account) : null, JSON.stringify(countCatalog(catalog)), now, id,
+      'UPDATE playlists SET account = ?, counts = ?, synced_at = ? WHERE id = ?',
+      catalog.account ? JSON.stringify(catalog.account) : null, JSON.stringify(countCatalog(catalog)), now, id,
     );
   }
 }

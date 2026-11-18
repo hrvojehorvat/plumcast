@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { SpatialNavigationView } from 'react-tv-space-navigation';
-import { usePlaylists } from '../data/store';
+import { activePlaylist, usePlaylists } from '../data/store';
+import { GuideSettings } from '../settings/GuideSettings';
 import { Button } from '../ui/Button';
 import { Focusable } from '../ui/Focusable';
 import { useI18n } from '../ui/i18n';
@@ -12,7 +13,8 @@ import { colors, radius } from '../ui/tokens';
 
 export default function Settings() {
   const { t } = useI18n();
-  const { list, activeId } = usePlaylists();
+  const state = usePlaylists();
+  const { list, activeId } = state;
 
   return (
     <Screen title={t('nav.settings')}>
@@ -38,12 +40,15 @@ export default function Settings() {
       <Row>
         <Button variant={list.length ? 'secondary' : 'primary'} icon="plus" label={t('playlist.add')} onPress={() => router.navigate('/playlists/add')} />
       </Row>
+      <Text weight="semibold" size={13} color={colors.textMuted} style={[styles.label, styles.section]}>{t('settings.guide').toUpperCase()}</Text>
+      <GuideSettings playlist={activePlaylist(state)} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   label: { letterSpacing: 1 },
+  section: { marginTop: 16 },
   list: { gap: 6, maxWidth: 640 },
   row: {
     flexDirection: 'row',

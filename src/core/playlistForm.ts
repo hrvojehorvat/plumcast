@@ -8,11 +8,13 @@ export interface PlaylistFormValues {
   username: string;
   password: string;
   m3uUrl: string;
+  /** Optional XMLTV link that replaces the provider's guide. */
+  guideUrl: string;
   /** Picked M3U file (name + contents), if any. */
   file: { name: string; text: string } | null;
 }
 
-export const EMPTY_FORM: PlaylistFormValues = { kind: 'xtream', name: '', server: '', username: '', password: '', m3uUrl: '', file: null };
+export const EMPTY_FORM: PlaylistFormValues = { kind: 'xtream', name: '', server: '', username: '', password: '', m3uUrl: '', guideUrl: '', file: null };
 
 /** The saved playlist being edited, if any (secrets are never shown again). */
 export interface EditedPlaylist {
@@ -21,7 +23,7 @@ export interface EditedPlaylist {
   username: string | null;
 }
 
-export type FormProblem = 'server' | 'username' | 'password' | 'm3uUrl' | 'file';
+export type FormProblem = 'server' | 'username' | 'password' | 'm3uUrl' | 'file' | 'guideUrl';
 
 export type FormResult =
   | {
@@ -50,6 +52,15 @@ export function applyServerInput(values: PlaylistFormValues, input: string): Pla
 
 /** Checks the form and turns it into what gets stored. Blank secrets on edit keep the saved ones. */
 export function validatePlaylistForm(values: PlaylistFormValues, edited: EditedPlaylist | null = null): FormResult {
+  const guide = values.guideUrl.trim();
+  if (guide && !HTTP_URL.test(guide)) return { ok: false, problem: 'guideUrl' };
+  const result = validateSource(values, edited);
+  // Always written (empty = removed), so clearing the field removes the override.
+  if (result.ok) result.draft.secret.guideOverride = guide;
+  return result;
+}
+
+function validateSource(values: PlaylistFormValues, edited: EditedPlaylist | null): FormResult {
   const sameKind = edited?.kind === values.kind;
   const name = values.name.trim();
 

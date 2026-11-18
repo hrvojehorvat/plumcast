@@ -100,6 +100,10 @@ export function countCatalog(catalog: Catalog): CatalogCounts {
 export interface PlaylistSecret {
   password?: string;
   m3uUrl?: string;
+  /** The guide link from the M3U `url-tvg` header (may contain a login, so it lives here, not in SQLite). */
+  guideUrl?: string;
+  /** A guide (XMLTV) link the user entered to replace the provider's guide. Empty = none. */
+  guideOverride?: string;
 }
 
 /** What the playlist form produces: the stored fields plus the secret part. */
