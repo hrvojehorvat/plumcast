@@ -1,0 +1,25 @@
+import type { Messages } from './en';
+
+export const de: Messages = {
+  'nav.home': 'Start',
+  'nav.live': 'Live-TV',
+  'nav.guide': 'TV-Programm',
+  'nav.movies': 'Filme',
+  'nav.series': 'Serien',
+  'nav.catchup': 'Mediathek',
+  'nav.search': 'Suche',
+  'nav.settings': 'Einstellungen',
+  'nav.more': 'Mehr',
+  'tab.live': 'Live',
+  'tab.guide': 'Programm',
+  'common.comingSoon': 'Kommt bald',
+  'home.intro': 'Deine Playlists, Live-TV, Wiederholungen, Filme und Serien an einem Ort.',
+  'home.noContent': 'Plumcast enthält keine Sender. Füge eine Playlist deines IPTV-Anbieters hinzu, um zu starten.',
+  'screen.live': 'Sender nach Kategorie, mit dem, was jetzt und danach läuft.',
+  'screen.guide': 'Das Programmraster für alle deine Sender.',
+  'screen.movies': 'Filme entdecken, fortsetzen und favorisieren.',
+  'screen.series': 'Staffeln und Folgen, mit Fortsetzen.',
+  'screen.catchup': 'Vergangene Sendungen auf Sendern mit Archiv.',
+  'screen.search': 'Suche in Live-TV, Filmen, Serien und im Programm.',
+  'screen.settings': 'Playlists, Sprache und Wiedergabe.',
+};

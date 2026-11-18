@@ -1,0 +1,25 @@
+import type { Messages } from './en';
+
+export const hr: Messages = {
+  'nav.home': 'Početna',
+  'nav.live': 'TV uživo',
+  'nav.guide': 'TV vodič',
+  'nav.movies': 'Filmovi',
+  'nav.series': 'Serije',
+  'nav.catchup': 'Propušteno',
+  'nav.search': 'Pretraga',
+  'nav.settings': 'Postavke',
+  'nav.more': 'Više',
+  'tab.live': 'Uživo',
+  'tab.guide': 'Vodič',
+  'common.comingSoon': 'Uskoro',
+  'home.intro': 'Tvoje playliste, TV uživo, propuštene emisije, filmovi i serije na jednom mjestu.',
+  'home.noContent': 'Plumcast ne sadrži nikakve kanale. Dodaj playlistu svog IPTV pružatelja za početak.',
+  'screen.live': 'Kanali po kategorijama, s onim što je sada i sljedeće.',
+  'screen.guide': 'Programska shema za sve tvoje kanale.',
+  'screen.movies': 'Pregledaj, nastavi i spremi filmove u favorite.',
+  'screen.series': 'Sezone i epizode, s nastavkom gledanja.',
+  'screen.catchup': 'Snimke prošlih emisija na kanalima koji imaju arhivu.',
+  'screen.search': 'Pretraga kroz TV uživo, filmove, serije i TV vodič.',
+  'screen.settings': 'Playliste, jezik i reprodukcija.',
+};
