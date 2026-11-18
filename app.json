@@ -30,7 +30,9 @@
           "isTV": true,
           "androidTVRequired": false
         }
-      ]
+      ],
+      "expo-sqlite",
+      "expo-secure-store"
     ],
     "scheme": "plumcast",
     "backgroundColor": "#0c0a12"

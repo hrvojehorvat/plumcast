@@ -12,6 +12,15 @@ export const ICONS = {
   settings: 'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   shield: 'M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z',
+  plus: 'M12 5v14M5 12h14',
+  refresh: 'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',
+  file: 'M14 3H6v18h12V7zM14 3v4h4',
+  edit: 'M4 20h4L19 9l-4-4L4 16zM13 7l4 4',
+  trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3',
+  check: 'M5 12l5 5L20 7',
+  alert: 'M12 3 2 21h20zM12 10v5M12 18h.01',
+  stop: 'M6 6h12v12H6z',
+  chevron: 'M9 6l6 6-6 6',
 } as const;
 
 export type IconName = keyof typeof ICONS;

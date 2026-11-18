@@ -19,5 +19,6 @@ export const PHONE_MORE: readonly NavKey[] = ['series', 'catchup', 'search', 'se
 export function navKeyForPath(pathname: string): NavKey | 'more' {
   const first = pathname.split('/').filter(Boolean)[0] ?? '';
   if (first === 'more') return 'more';
+  if (first === 'playlists') return 'settings';
   return NAV_ITEMS.find((item) => item.href === `/${first}`)?.key ?? 'home';
 }

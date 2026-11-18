@@ -19,4 +19,9 @@ describe('nav', () => {
     expect(navKeyForPath('/more')).toBe('more');
     expect(navKeyForPath('/unknown')).toBe('home');
   });
+
+  it('puts the playlist pages under Settings', () => {
+    expect(navKeyForPath('/playlists/add')).toBe('settings');
+    expect(navKeyForPath('/playlists/3')).toBe('settings');
+  });
 });

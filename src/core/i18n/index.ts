@@ -13,3 +13,9 @@ export function langFromLocale(locale: string | undefined): Lang {
   const base = (locale ?? '').toLowerCase().split(/[-_]/)[0];
   return LANGS.find((l) => l === base) ?? 'en';
 }
+
+/** Fills `{name}` placeholders ("Updated {when}"). Unknown names stay as they are. */
+export function interpolate(text: string, params?: Record<string, string | number>): string {
+  if (!params) return text;
+  return text.replace(/\{(\w+)\}/g, (match, name: string) => (name in params ? String(params[name]) : match));
+}

@@ -9,7 +9,7 @@ import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
 
 const upstream = process.env.EXPO_PUBLIC_DEV_XTREAM_URL;
-const port = Number(process.env.PLUMCAST_PROXY_PORT ?? 8787);
+const port = Number(process.env.EXPO_PUBLIC_DEV_PROXY_PORT || 8787);
 
 if (!upstream) {
   console.error('Set EXPO_PUBLIC_DEV_XTREAM_URL in apps/plumcast/.env.local (see .env.example).');

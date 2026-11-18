@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SpatialNavigationRoot, SpatialNavigationView } from 'react-tv-space-navigation';
+import { playlists } from '../data/store';
 import { I18nProvider } from '../ui/i18n';
 import { configureRemote } from '../ui/remote';
 import { Sidebar } from '../ui/Sidebar';
@@ -12,6 +13,7 @@ import { colors } from '../ui/tokens';
 import { useWideLayout } from '../ui/useWideLayout';
 
 configureRemote();
+void playlists.init();
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
