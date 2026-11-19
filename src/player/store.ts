@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import type { Programme } from '../core/epg';
 import type { Channel } from '../data/live';
 
 /**
@@ -13,6 +14,14 @@ export interface LiveSession {
   current: Channel;
   /** For "last channel". */
   previous: Channel | null;
+  /** Set while a past programme (or the current one from its start) plays instead of live. */
+  replay: Replay | null;
+}
+
+export interface Replay {
+  programme: Programme;
+  /** Where playback (re)started, unix ms; a seek starts a new stream from here. */
+  from: number;
 }
 
 let session: LiveSession | null = null;
@@ -37,7 +46,21 @@ let lastWatched: Channel | null = null;
 
 export const livePlayer = {
   open(playlistId: number, list: Channel[], channel: Channel) {
-    set({ playlistId, list, current: channel, previous: lastWatched && lastWatched.id !== channel.id ? lastWatched : null });
+    set({ playlistId, list, current: channel, previous: lastWatched && lastWatched.id !== channel.id ? lastWatched : null, replay: null });
+  },
+  /** Plays a programme from the archive, from its start or from `from`. */
+  openReplay(playlistId: number, list: Channel[], channel: Channel, programme: Programme, from = programme.start) {
+    const previous = session?.previous ?? (lastWatched && lastWatched.id !== channel.id ? lastWatched : null);
+    set({ playlistId, list, current: channel, previous, replay: { programme, from } });
+  },
+  /** Jumps within the replay (a new stream from `from`). */
+  seek(from: number) {
+    if (!session?.replay) return;
+    set({ ...session, replay: { ...session.replay, from } });
+  },
+  /** Leaves the replay and watches the channel live. */
+  goLive() {
+    if (session?.replay) set({ ...session, replay: null });
   },
   close() {
     if (session) lastWatched = session.current;
@@ -46,7 +69,7 @@ export const livePlayer = {
   /** Switch to a channel; the one before becomes "last channel". */
   tune(channel: Channel) {
     if (!session || channel.id === session.current.id) return;
-    set({ ...session, previous: session.current, current: channel });
+    set({ ...session, previous: session.current, current: channel, replay: null });
   },
   /** +1 = next in the list, -1 = previous; wraps around. */
   step(delta: 1 | -1) {

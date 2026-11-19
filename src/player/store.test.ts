@@ -44,4 +44,21 @@ describe('live player zapping', () => {
     expect(liveSessionSnapshot()?.list[0].favorite).toBe(true);
     livePlayer.close();
   });
+
+  it('plays a replay, seeks inside it, and goes live', () => {
+    const programme = { start: 1000, end: 5000, title: 'News', description: null };
+    livePlayer.openReplay(1, list, list[1], programme);
+    expect(liveSessionSnapshot()?.replay).toEqual({ programme, from: 1000 });
+    livePlayer.seek(3000);
+    expect(liveSessionSnapshot()?.replay?.from).toBe(3000);
+    livePlayer.goLive();
+    expect(liveSessionSnapshot()?.replay).toBeNull();
+    expect(liveSessionSnapshot()?.current.id).toBe('b');
+  });
+
+  it('switching channel ends the replay', () => {
+    livePlayer.openReplay(1, list, list[0], { start: 1, end: 2, title: 'x', description: null });
+    livePlayer.step(1);
+    expect(liveSessionSnapshot()?.replay).toBeNull();
+  });
 });

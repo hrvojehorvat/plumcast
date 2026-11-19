@@ -53,7 +53,12 @@ export function useGuideScreen(playlist: Playlist) {
     livePlayer.open(playlist.id, channels ?? [channel], channel);
   };
 
-  return { status, days, day, today, setDay, categories, selected, category, selectCategory, channels, detail, setDetail, watch };
+  const replay = (channel: Channel, programme: Programme) => {
+    setDetail(null);
+    livePlayer.openReplay(playlist.id, channels ?? [channel], channel, programme);
+  };
+
+  return { status, days, day, today, setDay, categories, selected, category, selectCategory, channels, detail, setDetail, watch, replay };
 }
 
 /** One line about the guide: downloading, failed, or when it was updated. */

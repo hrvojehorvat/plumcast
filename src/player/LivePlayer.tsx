@@ -1,16 +1,20 @@
+import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useLockSpatialNavigation } from 'react-tv-space-navigation';
+import { replayDays } from '../core/catchup';
 import { useTimeFormat } from '../ui/useTimeFormat';
 import { addRecent, channelByNumber, setFavorite } from '../data/live';
 import { useNowNext } from '../data/epg';
 import { usePlaylists } from '../data/store';
 import { useStreamUrl } from '../live/useLive';
 import { useI18n } from '../ui/i18n';
-import { Icon, type IconName } from '../ui/Icon';
+import { Icon } from '../ui/Icon';
 import { Text } from '../ui/Text';
-import { colors, radius } from '../ui/tokens';
+import { colors } from '../ui/tokens';
 import { addDigit, type PlayerKey } from './keys';
+import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, type Action } from './parts';
+import { ReplayPlayer } from './ReplayPlayer';
 import { livePlayer, useLiveSession, type LiveSession } from './store';
 import { usePlayerKeys } from './usePlayerKeys';
 import { Video } from './Video';
@@ -19,10 +23,11 @@ const INFO_MS = 6000;
 const DIGIT_MS = 1500;
 const RETRY_MS = 1500;
 
-/** Mounted once at the root; shows the full-screen player while a live session is open. */
+/** Mounted once at the root; shows the full-screen player while a session is open (live or replay). */
 export function LivePlayerHost() {
   const session = useLiveSession();
-  return session ? <LivePlayer session={session} /> : null;
+  if (!session) return null;
+  return session.replay ? <ReplayPlayer session={session} replay={session.replay} /> : <LivePlayer session={session} />;
 }
 
 interface Playback {
@@ -33,8 +38,6 @@ interface Playback {
   failed: boolean;
 }
 const freshPlayback = (url: string | null): Playback => ({ url, attempt: 0, playing: false, buffering: false, failed: false });
-
-type Action = { key: string; icon: IconName; label: string; run: () => void; filled?: boolean };
 
 function LivePlayer({ session }: { session: LiveSession }) {
   const { t } = useI18n();
@@ -109,13 +112,37 @@ function LivePlayer({ session }: { session: LiveSession }) {
     void setFavorite(playlist.id, channel.id, favorite);
   };
 
+  const now = info?.now;
+  const next = info?.next;
+  // What's on now on a channel that records can be watched from its start.
+  const restartable = replayDays(channel) > 0 && now ? now : null;
+  const openArchive = () => {
+    livePlayer.close();
+    router.push(`/catchup/${encodeURIComponent(channel.id)}`);
+  };
+
   const actions: Action[] = [
     { key: 'fav', icon: 'star', filled: channel.favorite, label: t(channel.favorite ? 'player.unfavorite' : 'player.favorite'), run: toggleFavorite },
     ...(session.previous ? [{ key: 'last', icon: 'undo' as const, label: t('player.lastChannel'), run: livePlayer.back }] : []),
+    ...(restartable && playlist
+      ? [{ key: 'restart', icon: 'catchup' as const, label: t('player.fromStart'), run: () => livePlayer.openReplay(playlist.id, session.list, channel, restartable) }]
+      : []),
+    ...(replayDays(channel) > 0 ? [{ key: 'archive', icon: 'archive' as const, label: t('player.catchup'), run: openArchive }] : []),
     { key: 'down', icon: 'up' as const, label: t('player.channelDown'), run: () => livePlayer.step(-1) },
     { key: 'up', icon: 'down' as const, label: t('player.channelUp'), run: () => livePlayer.step(1) },
     { key: 'close', icon: 'close' as const, label: t('player.close'), run: livePlayer.close },
   ];
+
+  // A channel that won't play: a card with its own buttons, first in the remote's ◀/▶ row.
+  const card: Action[] = failed
+    ? [
+        { key: 'retry', icon: 'catchup', label: t('player.tryAgain'), run: () => { setHighlight(-1); update({ failed: false, playing: false, attempt: status.attempt + 1 }); } },
+        { key: 'close', icon: 'close', label: t('player.close'), run: livePlayer.close },
+      ]
+    : [];
+  const row = [...card, ...actions];
+  const cardCount = failed ? 2 : 0;
+  const hl = splitHighlight(highlight, cardCount);
 
   const commitDigits = async (value: string) => {
     setDigits('');
@@ -139,7 +166,7 @@ function LivePlayer({ session }: { session: LiveSession }) {
     }
     switch (key) {
       case 'back':
-        if (overlay && highlight !== -1) {
+        if (!cardCount && overlay && highlight !== -1) {
           setOverlay(false);
           setHighlight(-1);
         } else livePlayer.close();
@@ -156,14 +183,11 @@ function LivePlayer({ session }: { session: LiveSession }) {
       case 'left':
       case 'right':
         showOverlay();
-        setHighlight((h) => {
-          if (h === -1) return key === 'right' ? 0 : actions.length - 1;
-          return Math.max(0, Math.min(actions.length - 1, h + (key === 'right' ? 1 : -1)));
-        });
+        setHighlight(moveHighlight(hl.effective, key, row.length));
         break;
       case 'select':
-        if (overlay && highlight !== -1) {
-          actions[highlight]?.run();
+        if (cardCount || (overlay && highlight !== -1)) {
+          row[hl.effective]?.run();
           showOverlay();
         } else if (overlay) {
           setOverlay(false);
@@ -176,8 +200,6 @@ function LivePlayer({ session }: { session: LiveSession }) {
   };
   usePlayerKeys(onKey);
 
-  const now = info?.now;
-  const next = info?.next;
   const time = useTimeFormat();
 
   return (
@@ -207,18 +229,10 @@ function LivePlayer({ session }: { session: LiveSession }) {
         </View>
       ) : null}
 
-      {failed ? (
-        <View style={styles.center} pointerEvents="box-none">
-          <View style={styles.errorCard}>
-            <Icon name="alert" size={28} color="#ff8787" />
-            <Text weight="semibold" size={18}>{t('player.error')}</Text>
-            <Text size={14} color={colors.textMuted} style={styles.centerText}>{t('player.errorHint')}</Text>
-          </View>
-        </View>
-      ) : null}
+      {failed ? <ErrorCard title={t('player.error')} hint={t('player.errorHint')} actions={card} highlight={hl.card} onRun={(a) => a.run()} /> : null}
 
       {digits || notice ? (
-        <View style={styles.digits} pointerEvents="none">
+        <View style={styles.bubble} pointerEvents="none">
           <Text weight="bold" size={digits ? 44 : 18}>{digits || notice}</Text>
         </View>
       ) : null}
@@ -253,23 +267,14 @@ function LivePlayer({ session }: { session: LiveSession }) {
             ) : (
               <Text size={14} color={colors.textMuted}>{t('live.noGuide')}</Text>
             )}
-            <View style={styles.actions}>
-              {actions.map((a, i) => (
-                <Pressable
-                  key={a.key}
-                  accessibilityLabel={a.label}
-                  focusable={false}
-                  onPress={() => {
-                    a.run();
-                    showOverlay();
-                  }}
-                  style={[styles.action, i === highlight && styles.actionFocused]}
-                >
-                  <Icon name={a.icon} size={20} color={i === highlight ? colors.text : colors.textSoft} filled={a.filled} />
-                  {i === highlight || Platform.isTV || Platform.OS === 'web' ? <Text size={13} weight="medium">{a.label}</Text> : null}
-                </Pressable>
-              ))}
-            </View>
+            <ActionBar
+              actions={actions}
+              highlight={hl.bar}
+              onRun={(a) => {
+                a.run();
+                showOverlay();
+              }}
+            />
             {Platform.isTV || Platform.OS === 'web' ? <Text size={12} color={colors.textFaint}>{t('player.keysHint')}</Text> : null}
           </View>
         </View>
@@ -277,61 +282,3 @@ function LivePlayer({ session }: { session: LiveSession }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#000', zIndex: 100 },
-  flex: { flex: 1 },
-  center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  centerText: { textAlign: 'center', lineHeight: 20 },
-  errorCard: {
-    maxWidth: 480,
-    margin: 24,
-    padding: 24,
-    gap: 10,
-    alignItems: 'center',
-    borderRadius: radius.lg,
-    backgroundColor: 'rgba(18,15,26,0.92)',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  digits: {
-    position: 'absolute',
-    top: 32,
-    right: 40,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: radius.md,
-    backgroundColor: 'rgba(12,10,18,0.85)',
-  },
-  panel: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 24 },
-  panelInner: {
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 1100,
-    padding: 20,
-    gap: 10,
-    borderRadius: radius.lg,
-    backgroundColor: 'rgba(12,10,18,0.88)',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  channelLine: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  logo: { width: 56, height: 36 },
-  programme: { gap: 6 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  track: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.glassStrong, overflow: 'hidden' },
-  fill: { height: 4, backgroundColor: colors.accent },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
-  action: {
-    height: 42,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    backgroundColor: colors.glassStrong,
-  },
-  actionFocused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
-});

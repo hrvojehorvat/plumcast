@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   empty: { lineHeight: 20, maxWidth: 420 },
   phone: { flex: 1, backgroundColor: colors.bg },
   phoneHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20 },
-  chipsScroll: { flexGrow: 0, marginTop: 12 },
+  chipsScroll: { flexGrow: 0, flexShrink: 0, marginTop: 12 },
   chips: { gap: 8, paddingHorizontal: 20 },
   chip: { height: 36, paddingHorizontal: 14, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: colors.glassStrong },
   chipOn: { backgroundColor: colors.accent },

@@ -26,6 +26,16 @@ describe('parseShortEpg', () => {
     ]);
   });
 
+  it('keeps the archive flag of archive listings', () => {
+    const json = {
+      epg_listings: [
+        { title: 'A', start_timestamp: 1000, stop_timestamp: 2000, has_archive: 1 },
+        { title: 'B', start_timestamp: 2000, stop_timestamp: 3000, has_archive: '0' },
+      ],
+    };
+    expect(parseShortEpg(json).map((p) => p.archive)).toEqual([true, false]);
+  });
+
   it('copes with empty or odd answers', () => {
     expect(parseShortEpg([])).toEqual([]);
     expect(parseShortEpg({ epg_listings: null })).toEqual([]);

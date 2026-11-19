@@ -6,13 +6,24 @@ import { Icon } from './Icon';
 import { colors, font, radius } from './tokens';
 
 /** Compact search box. OK starts typing; arrow keys stay in the text while typing. */
-export function SearchField({ value, onChangeText, placeholder }: { value: string; onChangeText: (text: string) => void; placeholder: string }) {
+export function SearchField({
+  value,
+  onChangeText,
+  placeholder,
+  onFocus,
+}: {
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder: string;
+  /** Remote focus arrived on the box. */
+  onFocus?: () => void;
+}) {
   const ref = useRef<ComponentRef<typeof TextInput>>(null);
   const [editing, setEditing] = useState(false);
   const { lock, unlock } = useLockSpatialNavigation();
 
   return (
-    <Focusable accessibilityLabel={placeholder} onSelect={() => ref.current?.focus()}>
+    <Focusable accessibilityLabel={placeholder} onFocus={onFocus} onSelect={() => ref.current?.focus()}>
       {({ isFocused }) => (
         <View style={[styles.box, (isFocused || editing) && styles.focused]}>
           <Icon name="search" size={18} color={colors.textFaint} />

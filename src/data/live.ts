@@ -131,6 +131,8 @@ export async function resetCategoryPrefs(playlistId: number) {
 const CHANNEL_COLUMNS = `l.id, l.num, l.name, l.logo, l.category_id, l.epg_id, l.archive, l.archive_days, l.url, l.catchup,
   (f.item_id IS NOT NULL) AS fav`;
 const FAV_JOIN = `LEFT JOIN favorites f ON f.playlist_id = l.playlist_id AND f.kind = 'live' AND f.item_id = l.id`;
+/** Channels Catch-up lists: every Xtream channel, M3U channels with catch-up attributes. */
+const REPLAYABLE = `(l.archive = 1 OR l.url IS NULL)`;
 const NOT_HIDDEN = `(l.category_id IS NULL OR l.category_id NOT IN
   (SELECT category_id FROM category_prefs WHERE playlist_id = l.playlist_id AND kind = 'live' AND hidden = 1))`;
 
@@ -138,11 +140,11 @@ const NOT_HIDDEN = `(l.category_id IS NULL OR l.category_id NOT IN
  * Channels of one category (or a built-in list), optionally filtered by a search text.
  * The search only looks inside that list, which keeps it fast on big playlists.
  */
-export async function listChannels(playlistId: number, categoryId: string, query = ''): Promise<Channel[]> {
+export async function listChannels(playlistId: number, categoryId: string, query = '', archiveOnly = false): Promise<Channel[]> {
   const db = await getDb();
   const params: (string | number)[] = [playlistId];
   let join = FAV_JOIN;
-  let where = 'l.playlist_id = ?';
+  let where = archiveOnly ? `l.playlist_id = ? AND ${REPLAYABLE}` : 'l.playlist_id = ?';
   let order = 'l.sort';
   if (categoryId === ALL) {
     where += ` AND ${NOT_HIDDEN}`;
@@ -162,6 +164,65 @@ export async function listChannels(playlistId: number, categoryId: string, query
   }
   const rows = await db.getAllAsync<ChannelRow>(`SELECT ${CHANNEL_COLUMNS} FROM live l ${join} WHERE ${where} ORDER BY ${order}`, ...params);
   return rows.map(toChannel);
+}
+
+/** Categories (user order, hidden ones left out) that have channels with catch-up, with that count. */
+export async function listArchiveCategories(playlistId: number): Promise<LiveCategory[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ id: string; name: string; count: number }>(
+    `SELECT c.id, c.name, n.count
+       FROM categories c
+       JOIN (SELECT category_id, COUNT(*) AS count FROM live l WHERE l.playlist_id = ? AND ${REPLAYABLE} GROUP BY category_id) n ON n.category_id = c.id
+       LEFT JOIN category_prefs p ON p.playlist_id = c.playlist_id AND p.kind = c.kind AND p.category_id = c.id
+      WHERE c.playlist_id = ? AND c.kind = 'live' AND COALESCE(p.hidden, 0) = 0
+      ORDER BY p.position IS NULL, p.position, c.sort`,
+    playlistId, playlistId,
+  );
+  return rows.map((r) => ({ id: r.id, name: r.name, count: r.count, hidden: false }));
+}
+
+/** How many favourite channels and channels overall have catch-up. */
+export async function countArchiveChannels(playlistId: number): Promise<{ favorites: number; all: number }> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ favorites: number; all: number }>(
+    `SELECT (SELECT COUNT(*) FROM favorites f JOIN live l ON l.playlist_id = f.playlist_id AND l.id = f.item_id
+              WHERE f.playlist_id = ? AND f.kind = 'live' AND ${REPLAYABLE}) AS favorites,
+            (SELECT COUNT(*) FROM live l WHERE l.playlist_id = ? AND ${REPLAYABLE} AND ${NOT_HIDDEN}) AS "all"`,
+    playlistId, playlistId,
+  );
+  return row ?? { favorites: 0, all: 0 };
+}
+
+export interface AiredItem {
+  channel: Channel;
+  programme: { start: number; end: number; title: string; description: string | null };
+}
+
+/**
+ * Programmes from the stored guide that ended in [from, to) on channels with catch-up (optionally
+ * one category or favourites), newest first. Each channel's own archive window is checked later.
+ */
+export async function recentlyAired(playlistId: number, categoryId: string, from: number, to: number, limit = 300): Promise<AiredItem[]> {
+  const db = await getDb();
+  const params: (string | number)[] = [playlistId, from, to];
+  let join = FAV_JOIN;
+  let where = `l.playlist_id = ? AND ${REPLAYABLE} AND e.stop > ? AND e.stop <= ?`;
+  if (categoryId === FAVORITES) join = `JOIN favorites f ON f.playlist_id = l.playlist_id AND f.kind = 'live' AND f.item_id = l.id`;
+  else if (categoryId === ALL) where += ` AND ${NOT_HIDDEN}`;
+  else {
+    where += ' AND l.category_id = ?';
+    params.push(categoryId);
+  }
+  const rows = await db.getAllAsync<ChannelRow & { p_start: number; p_stop: number; p_title: string; p_description: string | null }>(
+    `SELECT ${CHANNEL_COLUMNS}, e.start AS p_start, e.stop AS p_stop, e.title AS p_title, e.description AS p_description
+       FROM live l ${join}
+       JOIN epg e ON e.playlist_id = l.playlist_id AND e.channel = lower(l.epg_id)
+      WHERE ${where}
+      ORDER BY e.stop DESC, l.sort
+      LIMIT ${limit}`,
+    ...params,
+  );
+  return rows.map((r) => ({ channel: toChannel(r), programme: { start: r.p_start, end: r.p_stop, title: r.p_title, description: r.p_description } }));
 }
 
 export async function getChannel(playlistId: number, id: string): Promise<Channel | null> {

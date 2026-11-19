@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SpatialNavigationView, SpatialNavigationVirtualizedList, type SpatialNavigationNodeRef } from 'react-tv-space-navigation';
+import { canReplay } from '../core/catchup';
 import type { Programme } from '../core/epg';
 import { formatDay } from '../core/format';
 import { addDays, layoutRow, type GuideCell } from '../core/guide';
@@ -11,6 +12,7 @@ import type { Playlist } from '../data/playlists';
 import { ChannelLogo } from '../live/ChannelRow';
 import { Button } from '../ui/Button';
 import { Focusable } from '../ui/Focusable';
+import { Icon } from '../ui/Icon';
 import { useI18n } from '../ui/i18n';
 import { PickerDialog } from '../ui/PickerDialog';
 import { Row } from '../ui/Screen';
@@ -155,6 +157,7 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
           channel={guide.detail.channel}
           programme={guide.detail.programme}
           onWatch={() => guide.watch(guide.detail!.channel)}
+          onReplay={() => guide.replay(guide.detail!.channel, guide.detail!.programme)}
           onClose={() => guide.setDetail(null)}
         />
       ) : null}
@@ -265,6 +268,7 @@ const GuideRow = memo(function GuideRow({ playlist, channel, day, dayEnd, viewSt
               viewStart={viewStart}
               pxPerMin={pxPerMin}
               now={now}
+              replay={cell.programme !== null && canReplay(channel, cell.programme, now)}
               emptyLabel={programmes ? t('live.noGuide') : ''}
               onFocus={() => onFocus(cell)}
               onSelect={() => onOpen(channel, cell.programme)}
@@ -276,12 +280,14 @@ const GuideRow = memo(function GuideRow({ playlist, channel, day, dayEnd, viewSt
   );
 });
 
-function ProgrammeCell({ focusRef, cell, viewStart, pxPerMin, now, emptyLabel, onFocus, onSelect }: {
+function ProgrammeCell({ focusRef, cell, viewStart, pxPerMin, now, replay, emptyLabel, onFocus, onSelect }: {
   focusRef: (node: SpatialNavigationNodeRef | null) => void;
   cell: GuideCell;
   viewStart: number;
   pxPerMin: number;
   now: number;
+  /** Past, and in the channel's archive. */
+  replay: boolean;
   emptyLabel: string;
   onFocus: () => void;
   onSelect: () => void;
@@ -311,9 +317,12 @@ function ProgrammeCell({ focusRef, cell, viewStart, pxPerMin, now, emptyLabel, o
               {label}
             </Text>
             {cell.programme ? (
-              <Text size={12} numberOfLines={1} color={isFocused ? colors.onLight : colors.textFaint}>
-                {time(cell.programme.start)}–{time(cell.programme.end)}
-              </Text>
+              <View style={styles.cellTime}>
+                {replay ? <Icon name="archive" size={12} color={isFocused ? colors.onLight : colors.accentLight} /> : null}
+                <Text size={12} numberOfLines={1} color={isFocused ? colors.onLight : colors.textFaint}>
+                  {time(cell.programme.start)}–{time(cell.programme.end)}
+                </Text>
+              </View>
             ) : null}
           </View>
         </View>
@@ -324,6 +333,7 @@ function ProgrammeCell({ focusRef, cell, viewStart, pxPerMin, now, emptyLabel, o
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  cellTime: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   root: { flex: 1, paddingHorizontal: 32, paddingTop: 28, paddingBottom: 16, gap: 14, backgroundColor: colors.bg },
   head: { flexDirection: 'row', alignItems: 'center', gap: 20 },
   title: { letterSpacing: -1 },

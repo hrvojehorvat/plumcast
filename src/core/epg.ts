@@ -6,6 +6,8 @@ export interface Programme {
   end: number;
   title: string;
   description: string | null;
+  /** Xtream archive listings say whether a replay exists (`has_archive`); unknown elsewhere. */
+  archive?: boolean;
 }
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -58,7 +60,10 @@ export function parseShortEpg(json: unknown): Programme[] {
     const end = num(p.stop_timestamp ?? p.end_timestamp);
     const title = text(p.title);
     if (start === null || end === null || end <= start || !title) continue;
-    out.push({ start: start * 1000, end: end * 1000, title, description: text(p.description) });
+    const programme: Programme = { start: start * 1000, end: end * 1000, title, description: text(p.description) };
+    const archive = num(p.has_archive);
+    if (archive !== null) programme.archive = archive === 1;
+    out.push(programme);
   }
   return out.sort((a, b) => a.start - b.start);
 }

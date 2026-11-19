@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { canReplay } from '../core/catchup';
 import type { Programme } from '../core/epg';
 import { formatDay } from '../core/format';
 import { addDays } from '../core/guide';
@@ -88,6 +89,7 @@ export function PhoneGuide({ playlist }: { playlist: Playlist }) {
           channel={guide.detail.channel}
           programme={guide.detail.programme}
           onWatch={() => guide.watch(guide.detail!.channel)}
+          onReplay={() => guide.replay(guide.detail!.channel, guide.detail!.programme)}
           onClose={() => guide.setDetail(null)}
         />
       ) : null}
@@ -134,6 +136,7 @@ function DayList({ playlist, channel, day, onOpen }: { playlist: Playlist; chann
       renderItem={({ item }) => {
         const live = item.start <= now && now < item.end;
         const past = item.end <= now;
+        const replay = canReplay(channel, item, now);
         return (
           <Pressable onPress={() => onOpen(item)} accessibilityLabel={item.title} style={[styles.programme, live && styles.programmeLive]}>
             <Text size={14} weight="semibold" color={live ? colors.accentLight : past ? colors.textFaint : colors.textSoft} style={styles.time}>
@@ -142,6 +145,7 @@ function DayList({ playlist, channel, day, onOpen }: { playlist: Playlist; chann
             <Text size={15} weight={live ? 'semibold' : 'regular'} numberOfLines={2} color={past ? colors.textMuted : colors.text} style={styles.flex}>
               {item.title}
             </Text>
+            {replay ? <Icon name="archive" size={16} color={colors.accentLight} /> : null}
           </Pressable>
         );
       }}
@@ -155,7 +159,7 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20 },
   title: { flex: 1, letterSpacing: -1 },
   status: { paddingHorizontal: 20, paddingTop: 4, lineHeight: 17 },
-  chipsScroll: { flexGrow: 0, marginTop: 12 },
+  chipsScroll: { flexGrow: 0, flexShrink: 0, marginTop: 12 },
   chips: { gap: 8, paddingHorizontal: 20 },
   chip: { height: 36, paddingHorizontal: 14, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: colors.glassStrong },
   chipOn: { backgroundColor: colors.accent },

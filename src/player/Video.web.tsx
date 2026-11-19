@@ -7,26 +7,43 @@ import { routeUrl } from '../data/net';
 import { useLatest } from '../ui/useQuery';
 import type { VideoProps } from './types';
 
+// mpegts.js logs every parser hiccup with console.error, which the dev overlay pops up on
+// screen. Our own error handler below reports what matters (console.warn), so keep it quiet.
+mpegts.LoggingControl.applyConfig({
+  enableAll: false,
+  enableDebug: false,
+  enableVerbose: false,
+  enableInfo: false,
+  enableWarn: false,
+  enableError: false,
+});
+
 /**
  * Browser playback (dev testing). MPEG-TS goes through mpegts.js, HLS through hls.js (or
  * natively in Safari); both feed a plain <video> via Media Source Extensions.
  */
-export function Video({ url, muted, style, onPlaying, onBuffering, onError }: VideoProps) {
+export function Video({ url, muted, live = true, paused, style, onPlaying, onBuffering, onError, onProgress, onEnd }: VideoProps) {
   const ref = useRef<HTMLVideoElement>(null);
-  const callbacks = useLatest({ onPlaying, onBuffering, onError });
+  const callbacks = useLatest({ onPlaying, onBuffering, onError, onProgress, onEnd });
+  const pausedRef = useLatest(paused);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const src = routeUrl(url);
-    const fail = (message: string) => callbacks.current.onError?.(message);
+    const fail = (message: string) => {
+      console.warn('[player]', message.replace(/https?:\/\/\S+/g, '(link)'));
+      callbacks.current.onError?.(message);
+    };
     let destroy = () => undefined as void;
 
     const kind = webPlayerFor(url);
     if (kind === 'mpegts' && mpegts.isSupported()) {
+      // Replays are read as one continuous stream too: timeshift links ignore byte ranges, so
+      // mpegts.js's chunked loading would get misaligned data. Seeking builds a new link instead.
       const player = mpegts.createPlayer(
         { type: 'mpegts', isLive: true, url: src },
-        { enableStashBuffer: false, liveBufferLatencyChasing: true, lazyLoad: false },
+        live ? { enableStashBuffer: false, liveBufferLatencyChasing: true, lazyLoad: false } : { lazyLoad: false, liveBufferLatencyChasing: false },
       );
       player.on(mpegts.Events.ERROR, (type: string, detail: string) => fail(`${type}: ${detail}`));
       player.attachMediaElement(el);
@@ -59,7 +76,7 @@ export function Video({ url, muted, style, onPlaying, onBuffering, onError }: Vi
         el.muted = true;
         return el.play().catch(() => undefined);
       });
-    void play();
+    if (!pausedRef.current) void play();
 
     const onPlayingEvt = () => {
       callbacks.current.onBuffering?.(false);
@@ -67,16 +84,29 @@ export function Video({ url, muted, style, onPlaying, onBuffering, onError }: Vi
     };
     const onWaiting = () => callbacks.current.onBuffering?.(true);
     const onMediaError = () => fail(el.error?.message || `Media error ${el.error?.code ?? ''}`);
+    const onTime = () => callbacks.current.onProgress?.(el.currentTime);
+    const onEnded = () => callbacks.current.onEnd?.();
     el.addEventListener('playing', onPlayingEvt);
     el.addEventListener('waiting', onWaiting);
     el.addEventListener('error', onMediaError);
+    el.addEventListener('timeupdate', onTime);
+    el.addEventListener('ended', onEnded);
     return () => {
       el.removeEventListener('playing', onPlayingEvt);
       el.removeEventListener('waiting', onWaiting);
       el.removeEventListener('error', onMediaError);
+      el.removeEventListener('timeupdate', onTime);
+      el.removeEventListener('ended', onEnded);
       destroy();
     };
-  }, [url, callbacks]);
+  }, [url, live, callbacks, pausedRef]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (paused) el.pause();
+    else if (el.paused && el.currentSrc) void el.play().catch(() => undefined);
+  }, [paused]);
 
   useEffect(() => {
     if (ref.current) ref.current.muted = !!muted;

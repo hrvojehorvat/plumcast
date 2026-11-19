@@ -1,4 +1,5 @@
 import { StyleSheet, View } from 'react-native';
+import { canReplay, canRestart } from '../core/catchup';
 import type { Programme } from '../core/epg';
 import { formatDay } from '../core/format';
 import { useNow } from '../data/epg';
@@ -9,21 +10,38 @@ import { Text } from '../ui/Text';
 import { colors, radius } from '../ui/tokens';
 import { useTimeFormat } from '../ui/useTimeFormat';
 
-/** Details of one programme with "Watch live" (catch-up joins in the next phase). */
-export function ProgrammeDialog({ channel, programme, onWatch, onClose }: { channel: Channel; programme: Programme; onWatch: () => void; onClose: () => void }) {
+/** Details of one programme: watch live, or replay it / start it over on channels with catch-up. */
+export function ProgrammeDialog({
+  channel,
+  programme,
+  onWatch,
+  onReplay,
+  onClose,
+}: {
+  channel: Channel;
+  programme: Programme;
+  onWatch: () => void;
+  onReplay: () => void;
+  onClose: () => void;
+}) {
   const { t, lang } = useI18n();
   const time = useTimeFormat();
   const now = useNow(15_000);
   const live = programme.start <= now && now < programme.end;
   const ended = programme.end <= now;
+  const replay = canReplay(channel, programme, now);
+  const restart = canRestart(channel, programme, now);
   const minutes = Math.round((programme.end - programme.start) / 60_000);
 
   return (
     <Dialog
       onClose={onClose}
       actions={[
-        { label: t('guide.watchLive'), icon: 'play', primary: true, onPress: onWatch },
-        { label: t('player.close'), icon: 'close', onPress: onClose },
+        ...(replay
+          ? [{ label: t('guide.replay'), icon: 'archive' as const, primary: true, onPress: onReplay }]
+          : [{ label: t('guide.watchLive'), icon: 'play' as const, primary: true, onPress: onWatch }]),
+        ...(restart ? [{ label: t('player.fromStart'), icon: 'catchup' as const, onPress: onReplay }] : []),
+        { label: t('player.close'), icon: 'close' as const, onPress: onClose },
       ]}
     >
       <Text size={13} weight="semibold" color={colors.accentLight} numberOfLines={1}>
@@ -36,7 +54,7 @@ export function ProgrammeDialog({ channel, programme, onWatch, onClose }: { chan
             <Text size={12} weight="semibold" color="#ffffff">{t('guide.onNow').toUpperCase()}</Text>
           </View>
         ) : ended ? (
-          <Text size={13} color={colors.textFaint}>{t('guide.ended')} ·</Text>
+          <Text size={13} color={replay ? colors.accentLight : colors.textFaint}>{t(replay ? 'guide.replayable' : 'guide.ended')} ·</Text>
         ) : null}
         <Text size={14} color={colors.textSoft}>
           {formatDay(programme.start, lang)} · {time(programme.start)}–{time(programme.end)} · {t('guide.minutes', { n: minutes })}
