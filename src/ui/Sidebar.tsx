@@ -1,4 +1,5 @@
 import { router, usePathname } from 'expo-router';
+import { Fragment } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { DefaultFocus, SpatialNavigationView } from 'react-tv-space-navigation';
 import { NAV_ITEMS, navKeyForPath } from '../core/nav';
@@ -19,24 +20,27 @@ export function Sidebar() {
         <LogoMark size={38} />
       </View>
       <SpatialNavigationView direction="vertical" style={styles.items}>
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.map((item, i) => {
           const isActive = item.key === active;
           return (
-            <DefaultFocus key={item.key} enable={isActive}>
-              <Focusable accessibilityLabel={t(`nav.${item.key}`)} onSelect={() => router.navigate(item.href)}>
-                {({ isFocused }) => (
-                  <View
-                    style={[
-                      styles.item,
-                      isActive && { backgroundColor: colors.accentSoft },
-                      isFocused && styles.focused,
-                    ]}
-                  >
-                    <Icon name={item.key} color={isActive || isFocused ? colors.accentLight : colors.textFaint} />
-                  </View>
-                )}
-              </Focusable>
-            </DefaultFocus>
+            <Fragment key={item.key}>
+              {item.tool && !NAV_ITEMS[i - 1]?.tool ? <View style={styles.divider} /> : null}
+              <DefaultFocus enable={isActive}>
+                <Focusable accessibilityLabel={t(`nav.${item.key}`)} onSelect={() => router.navigate(item.href)}>
+                  {({ isFocused }) => (
+                    <View
+                      style={[
+                        styles.item,
+                        isActive && { backgroundColor: colors.accentSoft },
+                        isFocused && styles.focused,
+                      ]}
+                    >
+                      <Icon name={item.key} color={isActive || isFocused ? colors.accentLight : colors.textFaint} />
+                    </View>
+                  )}
+                </Focusable>
+              </DefaultFocus>
+            </Fragment>
           );
         })}
       </SpatialNavigationView>
@@ -64,5 +68,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
   },
+  divider: { width: 28, height: 1, marginVertical: 6, backgroundColor: colors.border },
   focused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
 });

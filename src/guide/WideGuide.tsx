@@ -1,6 +1,13 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { SpatialNavigationView, SpatialNavigationVirtualizedList, type SpatialNavigationNodeRef } from 'react-tv-space-navigation';
+import {
+  DefaultFocus,
+  SpatialNavigationScrollView,
+  SpatialNavigationView,
+  SpatialNavigationVirtualizedList,
+  type SpatialNavigationNodeRef,
+  type SpatialNavigationVirtualizedListRef,
+} from 'react-tv-space-navigation';
 import { canReplay } from '../core/catchup';
 import type { Programme } from '../core/epg';
 import { formatDay } from '../core/format';
@@ -9,13 +16,13 @@ import { cancelGuideSync, syncGuide } from '../data/guide';
 import { useNow } from '../data/epg';
 import type { Channel } from '../data/live';
 import type { Playlist } from '../data/playlists';
+import { CATEGORY_ITEM, CategoryRow } from '../live/CategoryRow';
 import { ChannelLogo } from '../live/ChannelRow';
+import type { CategoryItem } from '../live/useLive';
 import { Button } from '../ui/Button';
 import { Focusable } from '../ui/Focusable';
 import { Icon } from '../ui/Icon';
 import { useI18n } from '../ui/i18n';
-import { PickerDialog } from '../ui/PickerDialog';
-import { Row } from '../ui/Screen';
 import { Text } from '../ui/Text';
 import { colors, radius } from '../ui/tokens';
 import { useTimeFormat } from '../ui/useTimeFormat';
@@ -28,7 +35,9 @@ const ROW_GAP = 6;
 const CHANNEL_W = 210;
 const GAP = 6;
 /** About this many minutes fit on screen. */
-const VISIBLE_MIN = 150;
+const VISIBLE_MIN = 120;
+/** How long the focus rests on a category before the guide switches to it. */
+const CATEGORY_DELAY_MS = 300;
 const HALF_HOUR = 30 * 60_000;
 
 const floorHalfHour = (ms: number) => Math.floor(ms / HALF_HOUR) * HALF_HOUR;
@@ -40,7 +49,7 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
   const line = useGuideStatusLine(playlist);
   const now = useNow(30_000);
   const [gridWidth, setGridWidth] = useState(0);
-  const [picking, setPicking] = useState(false);
+  const [sideWidth, setSideWidth] = useState(0);
 
   const trackWidth = Math.max(0, gridWidth - CHANNEL_W - GAP);
   const pxPerMin = Math.max(3, trackWidth / VISIBLE_MIN);
@@ -77,81 +86,138 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
 
   const nowX = guide.day === guide.today ? ((now - viewStart) / 60_000) * pxPerMin : -1;
 
+  const area = useRef<'categories' | 'days' | 'grid'>('grid');
+  const list = useRef<SpatialNavigationVirtualizedListRef>(null);
+
+  // Moving through the categories switches the guide once the focus rests a moment.
+  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusCategory = (id: string) => {
+    area.current = 'categories';
+    if (pending.current) clearTimeout(pending.current);
+    if (id === guide.selected) return;
+    pending.current = setTimeout(() => guide.selectCategory(id), CATEGORY_DELAY_MS);
+  };
+  useEffect(() => () => {
+    if (pending.current) clearTimeout(pending.current);
+  }, []);
+
+  // ▶ from the categories lands on the day chips (the right column's first row); send it on to the channels.
+  const focusDay = () => {
+    if (area.current === 'categories' && guide.channels?.length) {
+      const row = Math.max(0, list.current?.currentlyFocusedItemIndex ?? 0);
+      setTimeout(() => list.current?.focus(row), 0);
+      return;
+    }
+    area.current = 'days';
+  };
+  const enterGrid = useCallback(() => {
+    area.current = 'grid';
+  }, []);
+
   return (
-    <SpatialNavigationView direction="vertical" style={styles.root}>
-      <View style={styles.head}>
+    <SpatialNavigationView direction="horizontal" style={styles.root}>
+      {/* Categories */}
+      <View style={styles.side}>
         <Text weight="bold" size={30} style={styles.title}>{t('nav.guide')}</Text>
-        <Text size={13} color={line.problem ? '#ffc9c9' : colors.textFaint} numberOfLines={2} style={styles.status}>{line.text}</Text>
-        <Row>
-          {line.busy ? (
-            <Button icon="stop" label={t('sync.stop')} onPress={cancelGuideSync} />
-          ) : (
-            <Button icon="refresh" label={t('guide.update')} onPress={() => void syncGuide(playlist)} />
-          )}
-        </Row>
-      </View>
-
-      <Row style={styles.filters}>
-        <Button icon="down" label={guide.category?.name ?? t('live.categories')} onPress={() => setPicking(true)} />
-        {guide.days.map((d) => (
-          <DayChip key={d} label={d === guide.today ? t('guide.today') : formatDay(d, lang)} selected={d === guide.day} onSelect={() => guide.setDay(d)} />
-        ))}
-      </Row>
-
-      <View style={styles.grid} onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}>
-        {gridWidth > 0 ? (
-          <>
-            <Ruler viewStart={viewStart} visibleMs={visibleMs} pxPerMin={pxPerMin} />
-            <View style={styles.rows}>
-              {guide.channels === null ? (
-                <Text size={14} color={colors.textMuted}>{t('live.loading')}</Text>
-              ) : guide.channels.length === 0 ? (
-                <Text size={14} color={colors.textMuted}>{t('live.noChannels')}</Text>
-              ) : (
+        {line.text ? <Text size={13} color={line.problem ? '#ffc9c9' : colors.textFaint} numberOfLines={3} style={styles.status}>{line.text}</Text> : null}
+        <SpatialNavigationView direction="vertical" style={styles.flex}>
+          {/* Always mounted, so the list keeps its place before the button for the remote. */}
+          <SpatialNavigationView direction="vertical" style={styles.listFill}>
+            <View style={styles.flex} onLayout={(e) => setSideWidth(e.nativeEvent.layout.width)}>
+              {guide.categories && sideWidth > 0 ? (
                 <SpatialNavigationVirtualizedList
-                  key={guide.selected ?? ''}
-                  data={guide.channels}
-                  itemSize={ROW + ROW_GAP}
+                  data={guide.categories}
+                  itemSize={CATEGORY_ITEM}
                   orientation="vertical"
-                  isGrid
                   scrollBehavior="stick-to-start"
-                  additionalItemsRendered={3}
-                  renderItem={({ item }: { item: Channel }) => (
-                    <GuideRow
-                      playlist={playlist}
-                      channel={item}
-                      day={guide.day}
-                      dayEnd={dayEnd}
-                      viewStart={viewStart}
-                      pxPerMin={pxPerMin}
-                      width={gridWidth}
-                      trackWidth={trackWidth}
-                      now={now}
-                      onFocusCell={onFocusCell}
-                      onOpen={openCell}
-                      onWatch={guide.watch}
-                    />
+                  additionalItemsRendered={6}
+                  renderItem={({ item }: { item: CategoryItem }) => (
+                    <DefaultFocus enable={item.id === guide.selected}>
+                      <Focusable
+                        accessibilityLabel={item.name}
+                        onFocus={() => focusCategory(item.id)}
+                        onSelect={() => guide.selectCategory(item.id)}
+                        style={{ width: sideWidth }}
+                      >
+                        {({ isFocused }) => <CategoryRow item={item} selected={item.id === guide.selected} focused={isFocused} />}
+                      </Focusable>
+                    </DefaultFocus>
                   )}
                 />
-              )}
-              {nowX >= 0 && nowX <= trackWidth ? <View pointerEvents="none" style={[styles.nowLine, { left: CHANNEL_W + GAP + nowX }]} /> : null}
+              ) : null}
             </View>
-          </>
-        ) : null}
+          </SpatialNavigationView>
+          <View style={styles.sideButton}>
+            {line.busy ? (
+              <Button icon="stop" label={t('sync.stop')} onPress={cancelGuideSync} />
+            ) : (
+              <Button icon="refresh" label={t('guide.update')} onPress={() => void syncGuide(playlist)} />
+            )}
+          </View>
+        </SpatialNavigationView>
       </View>
 
-      {picking && guide.categories ? (
-        <PickerDialog
-          title={t('live.categories')}
-          options={guide.categories.map((c) => ({ id: c.id, label: c.name, detail: c.count !== null ? String(c.count) : undefined }))}
-          value={guide.selected}
-          onPick={(id) => {
-            guide.selectCategory(id);
-            setPicking(false);
-          }}
-          onClose={() => setPicking(false)}
-        />
-      ) : null}
+      {/* Days and the grid */}
+      <SpatialNavigationView direction="vertical" style={styles.main}>
+        <View style={styles.mainHead}>
+          <Text weight="semibold" size={20} numberOfLines={1} style={styles.flex}>{guide.category?.name ?? ''}</Text>
+          {guide.channels ? <Text size={13} color={colors.textFaint}>{t('live.channelCount', { n: guide.channels.length })}</Text> : null}
+        </View>
+        <View style={styles.daysBox}>
+          <SpatialNavigationScrollView horizontal offsetFromStart={60} style={styles.daysScroll}>
+            <SpatialNavigationView direction="horizontal" style={styles.days}>
+              {guide.days.map((d) => (
+                <DayChip key={d} label={d === guide.today ? t('guide.today') : formatDay(d, lang)} selected={d === guide.day} onFocus={focusDay} onSelect={() => guide.setDay(d)} />
+              ))}
+            </SpatialNavigationView>
+          </SpatialNavigationScrollView>
+        </View>
+
+        <View style={styles.grid} onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}>
+          {gridWidth > 0 ? (
+            <>
+              <Ruler viewStart={viewStart} visibleMs={visibleMs} pxPerMin={pxPerMin} />
+              <View style={styles.rows}>
+                {guide.channels === null ? (
+                  <Text size={14} color={colors.textMuted}>{t('live.loading')}</Text>
+                ) : guide.channels.length === 0 ? (
+                  <Text size={14} color={colors.textMuted}>{t('live.noChannels')}</Text>
+                ) : (
+                  <SpatialNavigationVirtualizedList
+                    ref={list}
+                    key={guide.selected ?? ''}
+                    data={guide.channels}
+                    itemSize={ROW + ROW_GAP}
+                    orientation="vertical"
+                    isGrid
+                    scrollBehavior="stick-to-start"
+                    additionalItemsRendered={3}
+                    renderItem={({ item }: { item: Channel }) => (
+                      <GuideRow
+                        playlist={playlist}
+                        channel={item}
+                        day={guide.day}
+                        dayEnd={dayEnd}
+                        viewStart={viewStart}
+                        pxPerMin={pxPerMin}
+                        width={gridWidth}
+                        trackWidth={trackWidth}
+                        now={now}
+                        onEnter={enterGrid}
+                        onFocusCell={onFocusCell}
+                        onOpen={openCell}
+                        onWatch={guide.watch}
+                      />
+                    )}
+                  />
+                )}
+                {nowX >= 0 && nowX <= trackWidth ? <View pointerEvents="none" style={[styles.nowLine, { left: CHANNEL_W + GAP + nowX }]} /> : null}
+              </View>
+            </>
+          ) : null}
+        </View>
+      </SpatialNavigationView>
+
       {guide.detail ? (
         <ProgrammeDialog
           channel={guide.detail.channel}
@@ -165,9 +231,9 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
   );
 }
 
-function DayChip({ label, selected, onSelect }: { label: string; selected: boolean; onSelect: () => void }) {
+function DayChip({ label, selected, onFocus, onSelect }: { label: string; selected: boolean; onFocus: () => void; onSelect: () => void }) {
   return (
-    <Focusable accessibilityLabel={label} onSelect={onSelect}>
+    <Focusable accessibilityLabel={label} onFocus={onFocus} onSelect={onSelect}>
       {({ isFocused }) => (
         <View style={[styles.chip, selected && styles.chipOn, isFocused && styles.focused]}>
           <Text size={14} weight={selected ? 'semibold' : 'medium'} color={selected ? '#ffffff' : colors.textSoft}>{label}</Text>
@@ -203,6 +269,8 @@ interface RowProps {
   width: number;
   trackWidth: number;
   now: number;
+  /** The focus moved into this row. */
+  onEnter: () => void;
   onFocusCell: (cell: GuideCell) => void;
   onOpen: (channel: Channel, programme: Programme | null) => void;
   onWatch: (channel: Channel) => void;
@@ -212,7 +280,7 @@ interface RowProps {
  * One channel: its name (OK = watch live), then the day's programmes. Every 5-minute slot of
  * the day belongs to exactly one cell, so moving up/down lands on the programme at that time.
  */
-const GuideRow = memo(function GuideRow({ playlist, channel, day, dayEnd, viewStart, pxPerMin, width, trackWidth, now, onFocusCell, onOpen, onWatch }: RowProps) {
+const GuideRow = memo(function GuideRow({ playlist, channel, day, dayEnd, viewStart, pxPerMin, width, trackWidth, now, onEnter, onFocusCell, onOpen, onWatch }: RowProps) {
   const { t } = useI18n();
   const programmes = useChannelProgrammes(playlist, channel.epgId, day, dayEnd);
   const cells = useMemo(() => layoutRow(programmes ?? [], day, dayEnd), [programmes, day, dayEnd]);
@@ -222,6 +290,7 @@ const GuideRow = memo(function GuideRow({ playlist, channel, day, dayEnd, viewSt
   const fromChannel = useRef(false);
   const refs = useRef(new Map<number, SpatialNavigationNodeRef | null>());
   const onFocus = (cell: GuideCell) => {
+    onEnter();
     if (fromChannel.current) {
       fromChannel.current = false;
       const target = cells.find((c) => c.end > viewStart + 5 * 60_000) ?? cell;
@@ -240,7 +309,10 @@ const GuideRow = memo(function GuideRow({ playlist, channel, day, dayEnd, viewSt
       <Focusable
         accessibilityLabel={channel.name}
         indexRange={[0, 0]}
-        onFocus={() => (fromChannel.current = true)}
+        onFocus={() => {
+          fromChannel.current = true;
+          onEnter();
+        }}
         // Focus that moves on to another row's channel must not count later.
         onBlur={() => setTimeout(() => (fromChannel.current = false), 0)}
         onSelect={() => onWatch(channel)}
@@ -334,11 +406,17 @@ function ProgrammeCell({ focusRef, cell, viewStart, pxPerMin, now, replay, empty
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   cellTime: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  root: { flex: 1, paddingHorizontal: 32, paddingTop: 28, paddingBottom: 16, gap: 14, backgroundColor: colors.bg },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  root: { flex: 1, flexDirection: 'row', gap: 28, paddingHorizontal: 32, paddingTop: 32, paddingBottom: 16, backgroundColor: colors.bg },
+  side: { width: 270, gap: 12 },
   title: { letterSpacing: -1 },
-  status: { flex: 1, lineHeight: 18 },
-  filters: { flexWrap: 'nowrap', overflow: 'hidden' },
+  status: { lineHeight: 18 },
+  listFill: { flex: 1, minHeight: 0, overflow: 'hidden' },
+  sideButton: { paddingTop: 12, flexDirection: 'row' },
+  main: { flex: 1, minWidth: 0, gap: 12, paddingTop: 8 },
+  mainHead: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  daysBox: { height: 50 },
+  daysScroll: { flexGrow: 0, flexShrink: 0 },
+  days: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
   chip: { height: 46, paddingHorizontal: 16, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: colors.glassStrong, borderWidth: 2, borderColor: 'transparent' },
   chipOn: { backgroundColor: colors.accent },
   focused: { borderColor: colors.focusRing },

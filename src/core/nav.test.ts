@@ -4,8 +4,12 @@ import { NAV_ITEMS, PHONE_MORE, PHONE_TABS, navKeyForPath } from './nav';
 describe('nav', () => {
   it('keeps the agreed menu order', () => {
     expect(NAV_ITEMS.map((i) => i.key)).toEqual([
-      'home', 'live', 'guide', 'movies', 'series', 'catchup', 'search', 'settings',
+      'home', 'live', 'movies', 'series', 'catchup', 'guide', 'search', 'settings',
     ]);
+  });
+
+  it('sets search and settings apart from the watching sections', () => {
+    expect(NAV_ITEMS.filter((i) => i.tool).map((i) => i.key)).toEqual(['search', 'settings']);
   });
 
   it('puts every item either in a phone tab or under More', () => {

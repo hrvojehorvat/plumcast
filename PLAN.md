@@ -81,7 +81,7 @@ Two ways in, both showing only programmes that really have a replay:
 - Builds the right URL:
   - Xtream `/timeshift/...`
   - M3U modes: `default`, `append`, `shift`, `flussonic`, `xc`
-- Navigation order (TV sidebar): Home, Live TV, TV guide, Movies, Series, **Catch-up**, Search, Settings. Phone tab bar keeps the same order: Home, Live, Guide, Movies, More (More = Series, Catch-up, Search, Settings).
+- Navigation order (TV sidebar): Home, Live TV, Movies, Series, **Catch-up**, TV guide, a thin divider, then Search, Settings (tools, not watching). Phone tab bar: Home, Live, Movies, Series, More (More = Catch-up, TV guide, Search, Settings). TV guide on TV: categories in a left column (moving through them switches the channels on the right after a short pause), ▶ goes to the channels, ▲ from the grid reaches the day chips.
 - Data: needs EPG for the archive channels' past days (Xtream `get_simple_data_table` per channel, or the XMLTV feed), stored in SQLite and refreshed in the background.
 - Seeking within the programme; "Go live" jumps back to the live channel.
 - Verified against your provider.

@@ -1,19 +1,22 @@
-/** Main navigation, in menu order. Phone shows the first four as tabs plus "More". */
+/**
+ * Main navigation, in menu order. Phone shows the first four as tabs plus "More".
+ * `tool` items (search, settings) aren't about watching; the TV rail sets them apart.
+ */
 export const NAV_ITEMS = [
-  { key: 'home', href: '/' },
-  { key: 'live', href: '/live' },
-  { key: 'guide', href: '/guide' },
-  { key: 'movies', href: '/movies' },
-  { key: 'series', href: '/series' },
-  { key: 'catchup', href: '/catchup' },
-  { key: 'search', href: '/search' },
-  { key: 'settings', href: '/settings' },
+  { key: 'home', href: '/', tool: false },
+  { key: 'live', href: '/live', tool: false },
+  { key: 'movies', href: '/movies', tool: false },
+  { key: 'series', href: '/series', tool: false },
+  { key: 'catchup', href: '/catchup', tool: false },
+  { key: 'guide', href: '/guide', tool: false },
+  { key: 'search', href: '/search', tool: true },
+  { key: 'settings', href: '/settings', tool: true },
 ] as const;
 
 export type NavKey = (typeof NAV_ITEMS)[number]['key'];
 
-export const PHONE_TABS: readonly NavKey[] = ['home', 'live', 'guide', 'movies'];
-export const PHONE_MORE: readonly NavKey[] = ['series', 'catchup', 'search', 'settings'];
+export const PHONE_TABS: readonly NavKey[] = ['home', 'live', 'movies', 'series'];
+export const PHONE_MORE: readonly NavKey[] = ['catchup', 'guide', 'search', 'settings'];
 
 /** Which nav item a pathname belongs to ("/live/123" → "live"). */
 export function navKeyForPath(pathname: string): NavKey | 'more' {

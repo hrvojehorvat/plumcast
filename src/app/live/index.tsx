@@ -6,6 +6,7 @@ import { DefaultFocus, SpatialNavigationView, SpatialNavigationVirtualizedList }
 import { FAVORITES, RECENT, type Channel } from '../../data/live';
 import type { Playlist } from '../../data/playlists';
 import { activePlaylist, usePlaylists } from '../../data/store';
+import { CATEGORY_ITEM, CategoryRow } from '../../live/CategoryRow';
 import { ChannelRow, ROW_GAP, ROW_HEIGHT } from '../../live/ChannelRow';
 import { PreviewPane } from '../../live/PreviewPane';
 import { defaultCategory, useChannels, useDebounced, useLiveCategories, type CategoryItem } from '../../live/useLive';
@@ -23,7 +24,6 @@ import { useWideLayout } from '../../ui/useWideLayout';
 /** Remembered while the app runs, so coming back to Live TV opens the same list. */
 let lastCategory: string | null = null;
 const PREVIEW_DELAY_MS = 700;
-const CATEGORY_ITEM = 52;
 
 export default function LiveScreen() {
   const { t } = useI18n();
@@ -104,24 +104,27 @@ function WideLive({ playlist }: { playlist: Playlist }) {
       <View style={styles.categories}>
         <Text weight="bold" size={30} style={styles.title}>{t('nav.live')}</Text>
         <SpatialNavigationView direction="vertical" style={styles.flex}>
-          <View style={styles.listFill} onLayout={(e) => setCategoryWidth(e.nativeEvent.layout.width)}>
-            {live.categories && categoryWidth > 0 ? (
-              <SpatialNavigationVirtualizedList
-                data={live.categories}
-                itemSize={CATEGORY_ITEM}
-                orientation="vertical"
-                scrollBehavior="stick-to-start"
-                additionalItemsRendered={6}
-                renderItem={({ item }: { item: CategoryItem }) => (
-                  <DefaultFocus enable={item.id === live.selected}>
-                    <Focusable accessibilityLabel={item.name} onSelect={() => live.select(item.id)} style={{ width: categoryWidth }}>
-                      {({ isFocused }) => <CategoryRow item={item} selected={item.id === live.selected} focused={isFocused} />}
-                    </Focusable>
-                  </DefaultFocus>
-                )}
-              />
-            ) : null}
-          </View>
+          {/* Always mounted, so the list keeps its place before the button for the remote. */}
+          <SpatialNavigationView direction="vertical" style={styles.listFill}>
+            <View style={styles.flex} onLayout={(e) => setCategoryWidth(e.nativeEvent.layout.width)}>
+              {live.categories && categoryWidth > 0 ? (
+                <SpatialNavigationVirtualizedList
+                  data={live.categories}
+                  itemSize={CATEGORY_ITEM}
+                  orientation="vertical"
+                  scrollBehavior="stick-to-start"
+                  additionalItemsRendered={6}
+                  renderItem={({ item }: { item: CategoryItem }) => (
+                    <DefaultFocus enable={item.id === live.selected}>
+                      <Focusable accessibilityLabel={item.name} onSelect={() => live.select(item.id)} style={{ width: categoryWidth }}>
+                        {({ isFocused }) => <CategoryRow item={item} selected={item.id === live.selected} focused={isFocused} />}
+                      </Focusable>
+                    </DefaultFocus>
+                  )}
+                />
+              ) : null}
+            </View>
+          </SpatialNavigationView>
           <View style={styles.editButton}>
             <Button icon="edit" label={t('live.editCategories')} onPress={() => router.push('/live/categories')} />
           </View>
@@ -161,19 +164,6 @@ function WideLive({ playlist }: { playlist: Playlist }) {
       {/* Preview */}
       <PreviewPane playlist={playlist} channel={shown} playing={!session && preview !== null && shown?.id === preview.id} />
     </SpatialNavigationView>
-  );
-}
-
-function CategoryRow({ item, selected, focused }: { item: CategoryItem; selected: boolean; focused: boolean }) {
-  const icon = item.id === FAVORITES ? 'star' : item.id === RECENT ? 'catchup' : null;
-  return (
-    <View style={[styles.category, selected && styles.categorySelected, focused && styles.categoryFocused]}>
-      {icon ? <Icon name={icon} size={16} color={selected || focused ? colors.accentLight : colors.textFaint} /> : null}
-      <Text weight={selected ? 'semibold' : 'regular'} size={15} numberOfLines={1} color={selected || focused ? colors.text : colors.textSoft} style={styles.flex}>
-        {item.name}
-      </Text>
-      {item.count !== null ? <Text size={12} color={colors.textFaint}>{item.count}</Text> : null}
-    </View>
   );
 }
 
@@ -234,18 +224,6 @@ const styles = StyleSheet.create({
   categories: { width: 270, gap: 16 },
   listFill: { flex: 1, minHeight: 0, overflow: 'hidden' },
   editButton: { paddingTop: 12, flexDirection: 'row' },
-  category: {
-    height: CATEGORY_ITEM - 6,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  categorySelected: { backgroundColor: colors.accentSoft },
-  categoryFocused: { borderColor: colors.focusRing },
   channels: { flex: 1, gap: 12, paddingTop: 8 },
   channelsHead: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 12 },
   empty: { lineHeight: 20, maxWidth: 420 },
