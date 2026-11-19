@@ -1,7 +1,10 @@
 import { useSyncExternalStore } from 'react';
 import type { Programme } from '../core/epg';
 import type { Channel } from '../data/live';
+import { episodeLabel, type Episode, type Season } from '../core/series';
+import { splitTitle } from '../core/vod';
 import type { MovieItem } from '../data/movies';
+import type { SeriesItem } from '../data/series';
 
 /**
  * The full-screen live player. It is drawn above the whole app, so the screen that opened
@@ -93,37 +96,54 @@ export const livePlayer = {
   },
 };
 
-// ---- movies ----
+// ---- movies and episodes ----
 
-/** A movie playing full screen (instead of a live / replay session; only one stream at a time). */
-export interface MovieSession {
+/** What plays in the VOD player: a movie, or an episode of a series (with its seasons, for "next episode"). */
+export type VodItem =
+  | { kind: 'movie'; movie: MovieItem }
+  | { kind: 'episode'; series: SeriesItem; seasons: Season[]; episode: Episode };
+
+/** A movie or episode playing full screen (instead of a live / replay session; only one stream at a time). */
+export interface VodSession {
   playlistId: number;
-  movie: MovieItem;
-  /** Shown in the player; the provider's name without the year. */
+  item: VodItem;
+  /** Shown in the player. */
   title: string;
   /** Where playback starts, ms into the file. */
   startMs: number;
 }
 
-let movieSession: MovieSession | null = null;
-const movieListeners = new Set<() => void>();
-const setMovie = (next: MovieSession | null) => {
-  movieSession = next;
-  movieListeners.forEach((l) => l());
+let vodSession: VodSession | null = null;
+const vodListeners = new Set<() => void>();
+const setMovie = (next: VodSession | null) => {
+  vodSession = next;
+  vodListeners.forEach((l) => l());
 };
-const subscribeMovie = (l: () => void) => {
-  movieListeners.add(l);
-  return () => movieListeners.delete(l);
+const subscribeVod = (l: () => void) => {
+  vodListeners.add(l);
+  return () => vodListeners.delete(l);
 };
 
-export function useMovieSession(): MovieSession | null {
-  return useSyncExternalStore(subscribeMovie, () => movieSession, () => movieSession);
+export function useVodSession(): VodSession | null {
+  return useSyncExternalStore(subscribeVod, () => vodSession, () => vodSession);
+}
+
+/** Key that changes when another movie / episode starts (the player starts fresh). */
+export const vodKey = (s: VodSession) => `${s.playlistId}|${s.item.kind}|${s.item.kind === 'movie' ? s.item.movie.id : s.item.episode.id}`;
+
+/** "Show · S1 E3 · Title" */
+export function episodeTitleLine(series: Pick<SeriesItem, 'name'>, episode: Episode): string {
+  return [splitTitle(series.name).title, episodeLabel(episode), episode.title].filter(Boolean).join('  ·  ');
 }
 
 export const moviePlayer = {
   open(playlistId: number, movie: MovieItem, title: string, startMs = 0) {
     livePlayer.close();
-    setMovie({ playlistId, movie, title, startMs });
+    setMovie({ playlistId, item: { kind: 'movie', movie }, title, startMs });
+  },
+  openEpisode(playlistId: number, series: SeriesItem, seasons: Season[], episode: Episode, startMs = 0) {
+    livePlayer.close();
+    setMovie({ playlistId, item: { kind: 'episode', series, seasons, episode }, title: episodeTitleLine(series, episode), startMs });
   },
   close() {
     setMovie(null);

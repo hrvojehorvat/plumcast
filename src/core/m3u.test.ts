@@ -65,6 +65,11 @@ describe('m3uToCatalog', () => {
   it('groups episodes into series and keeps movies', () => {
     expect(catalog.movies).toEqual([expect.objectContaining({ name: 'Der Film (2020)', ext: 'mkv', categoryId: 'Movies DE' })]);
     expect(catalog.series).toEqual([expect.objectContaining({ name: 'Die Serie', cover: 'http://img/s.png', categoryId: 'Series DE' })]);
+    const seriesId = catalog.series[0].id;
+    expect(catalog.episodes).toEqual([
+      expect.objectContaining({ seriesId, season: 1, number: 1, title: null, url: 'http://tv.example/series/u/p/900.mp4', image: 'http://img/s.png' }),
+      expect.objectContaining({ seriesId, season: 1, number: 2, title: null, url: 'http://tv.example/series/u/p/901.mp4', image: null }),
+    ]);
   });
 
   it('lists categories once per kind and takes the first EPG URL', () => {

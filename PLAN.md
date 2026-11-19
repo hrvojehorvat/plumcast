@@ -99,6 +99,12 @@ Two ways in, both showing only programmes that really have a replay:
 ### 6. Series
 - Series grid, then detail (seasons as tabs), then the episode list with progress.
 - Auto-play the next episode with a countdown; resume per episode.
+- Shares the movie screen (one catalog component): Continue watching (an episode started, series not finished), Favorites, All series, then the provider's categories; sort New (provider's last update) / A–Z / Rating. The poster shows the next episode ("S1 E2") while a series is in progress.
+- Detail page: on TV the left column holds Back, poster, Play/Resume ("Play S1 E2"), Trailer, Favorite and the plot; the right column has season chips (moving the focus over a chip switches season) and the episode list. ▶ on an episode reaches its watched toggle.
+- Play picks: the last episode if unfinished (resume after the first minute), else the next one, else the first unwatched, else the first.
+- Episode progress lives in the shared `progress` table (kind `episode`); `series_progress` keeps the last episode per series for Continue watching. DB schema v5.
+- Episode end: "Next episode in 10 s" card (Play now / Close); the player also has a "Next episode" action. The last episode marks the series finished.
+- Seasons come from the `episodes` keys of `get_series_info` (providers' `seasons` list is often empty). Titles like "Show - S01E01 -" are cleaned to nothing, then shown as "Episode 1". M3U: episodes are grouped from `SxxEyy` in the titles and stored at sync (re-sync an M3U playlist once to get them).
 
 ### 7. Home, search, favorites, continue watching
 - Home screen rows:

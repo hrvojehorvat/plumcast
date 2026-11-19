@@ -1,6 +1,7 @@
 import { hashId, num } from './coerce';
 import { PlaylistError } from './errors';
-import type { Catalog, Category, ContentKind, LiveChannel, Movie, Series } from './models';
+import type { Catalog, Category, ContentKind, LiveChannel, Movie, Series, StoredEpisode } from './models';
+import { episodeCode, episodeTitle } from './series';
 
 export interface M3uEntry {
   title: string;
@@ -107,6 +108,8 @@ export function m3uToCatalog(file: M3uFile): Catalog {
   const live: LiveChannel[] = [];
   const movies: Movie[] = [];
   const seriesById = new Map<string, Series>();
+  const episodes: StoredEpisode[] = [];
+  const episodeCount = new Map<string, number>();
   const usedIds = new Set<string>();
   const uniqueId = (url: string) => {
     let id = hashId(url);
@@ -148,13 +151,24 @@ export function m3uToCatalog(file: M3uFile): Catalog {
       });
     } else {
       // M3U has episodes, not series: group them by title without the "S01 E02" part.
-      // (Episodes themselves are stored with the Series phase.)
       const name = entry.title.replace(EPISODE, '').trim() || entry.title;
       const categoryId = categoryFor('series', groupName);
       const id = hashId(`${categoryId ?? ''}\u0000${name}`);
       if (!seriesById.has(id)) {
-        seriesById.set(id, { id, name, cover: logo, categoryId, rating: null, plot: null, year: null });
+        seriesById.set(id, { id, name, cover: logo, categoryId, rating: null, plot: null, year: null, updatedAt: null });
       }
+      const code = episodeCode(entry.title);
+      const count = (episodeCount.get(id) ?? 0) + 1;
+      episodeCount.set(id, count);
+      episodes.push({
+        seriesId: id,
+        id: uniqueId(url),
+        season: code?.season ?? 1,
+        number: code?.number ?? count,
+        title: episodeTitle(entry.title, name),
+        url,
+        image: logo,
+      });
     }
   }
 
@@ -164,6 +178,7 @@ export function m3uToCatalog(file: M3uFile): Catalog {
     live,
     movies,
     series: [...seriesById.values()],
+    episodes,
     epgUrl: epg.split(',')[0]?.trim() || null,
     account: null,
   };

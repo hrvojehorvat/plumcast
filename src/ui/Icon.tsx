@@ -34,6 +34,7 @@ export const ICONS = {
   pause: 'M8 5v14M16 5v14',
   rewind: 'M11 7l-7 5 7 5zM20 7l-7 5 7 5z',
   forward: 'M13 7l7 5-7 5zM4 7l7 5-7 5z',
+  next: 'M5 5l10 7-10 7zM19 5v14',
   archive: 'M12 7v5l3 2M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5',
 } as const;
 

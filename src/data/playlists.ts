@@ -122,7 +122,7 @@ export async function saveCatalog(id: number, catalog: Catalog, now = Date.now()
 async function writeCatalog(id: number, catalog: Catalog, now: number) {
   const db = await getDb();
   {
-    for (const table of ['categories', 'live', 'movies', 'series']) {
+    for (const table of ['categories', 'live', 'movies', 'series', 'episodes']) {
       await db.runAsync(`DELETE FROM ${table} WHERE playlist_id = ?`, id);
     }
     await insertMany(db, 'categories', ['playlist_id', 'kind', 'id', 'name', 'sort'], catalog.categories.map((c, i) => [id, c.kind, c.id, c.name, i]));
@@ -141,8 +141,14 @@ async function writeCatalog(id: number, catalog: Catalog, now: number) {
     await insertMany(
       db,
       'series',
-      ['playlist_id', 'id', 'name', 'cover', 'category_id', 'rating', 'plot', 'year', 'sort', 'search'],
-      catalog.series.map((s, i) => [id, s.id, s.name, s.cover, s.categoryId, s.rating, s.plot, s.year, i, foldSearch(s.name)]),
+      ['playlist_id', 'id', 'name', 'cover', 'category_id', 'rating', 'plot', 'year', 'updated_at', 'sort', 'search'],
+      catalog.series.map((s, i) => [id, s.id, s.name, s.cover, s.categoryId, s.rating, s.plot, s.year, s.updatedAt, i, foldSearch(s.name)]),
+    );
+    await insertMany(
+      db,
+      'episodes',
+      ['playlist_id', 'series_id', 'id', 'season', 'number', 'title', 'url', 'image', 'sort'],
+      catalog.episodes.map((e, i) => [id, e.seriesId, e.id, e.season, e.number, e.title, e.url, e.image, i]),
     );
     await db.runAsync(
       'UPDATE playlists SET account = ?, counts = ?, synced_at = ? WHERE id = ?',

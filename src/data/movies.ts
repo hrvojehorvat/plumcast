@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import type { CatalogSort } from '../catalog/CatalogScreen';
 import { likeContains } from '../core/search';
 import { getDb } from './db';
 import { ALL, FAVORITES } from './live';
@@ -7,7 +8,7 @@ import { ALL, FAVORITES } from './live';
 export const CONTINUE = ':continue';
 export { ALL, FAVORITES };
 
-export type MovieSort = 'recent' | 'az' | 'rating';
+export type MovieSort = CatalogSort;
 
 export interface MovieCategory {
   id: string;

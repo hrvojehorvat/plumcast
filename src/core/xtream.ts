@@ -156,6 +156,7 @@ export function parseSeries(json: unknown): Series[] {
       rating: num(s.rating),
       plot: str(s.plot),
       year: year && year > 1900 ? year : null,
+      updatedAt: unixMs(s.last_modified),
     });
   }
   return out;
@@ -201,6 +202,7 @@ export async function fetchXtreamCatalog(login: XtreamLogin, fetcher: FetchLike,
     live,
     movies,
     series,
+    episodes: [],
     epgUrl: xmltvUrl(login),
     account,
   };

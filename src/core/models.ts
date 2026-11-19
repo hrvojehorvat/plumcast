@@ -63,6 +63,19 @@ export interface Series {
   rating: number | null;
   plot: string | null;
   year: number | null;
+  /** Unix ms of the provider's last change (new episodes), for "New" sorting. */
+  updatedAt: number | null;
+}
+
+/** An episode known at sync time. Only M3U lists have these; Xtream episodes come with the series' details. */
+export interface StoredEpisode {
+  seriesId: string;
+  id: string;
+  season: number;
+  number: number;
+  title: string | null;
+  url: string;
+  image: string | null;
 }
 
 /** Everything one sync downloads for a playlist. */
@@ -71,6 +84,7 @@ export interface Catalog {
   live: LiveChannel[];
   movies: Movie[];
   series: Series[];
+  episodes: StoredEpisode[];
   epgUrl: string | null;
   account: AccountInfo | null;
 }

@@ -1,6 +1,6 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 let dbPromise: Promise<SQLiteDatabase> | null = null;
 
@@ -176,6 +176,38 @@ async function migrate(db: SQLiteDatabase) {
         );
         CREATE INDEX progress_recent ON progress (playlist_id, kind, updated_at);
         CREATE INDEX movies_by_added ON movies (playlist_id, added_at);
+      `);
+    }
+    if (version < 5) {
+      // Series: the provider's last change (for "recently updated"), M3U episodes (Xtream loads
+      // them per series), and where the user is in each series (last episode played).
+      await db.execAsync(`
+        ALTER TABLE series ADD COLUMN updated_at INTEGER;
+        CREATE INDEX series_by_updated ON series (playlist_id, updated_at);
+        CREATE TABLE episodes (
+          playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+          series_id TEXT NOT NULL,
+          id TEXT NOT NULL,
+          season INTEGER NOT NULL,
+          number INTEGER NOT NULL,
+          title TEXT,
+          url TEXT NOT NULL,
+          image TEXT,
+          sort INTEGER NOT NULL,
+          PRIMARY KEY (playlist_id, id)
+        );
+        CREATE INDEX episodes_by_series ON episodes (playlist_id, series_id, sort);
+        CREATE TABLE series_progress (
+          playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+          series_id TEXT NOT NULL,
+          episode_id TEXT NOT NULL,
+          season INTEGER NOT NULL,
+          episode INTEGER NOT NULL,
+          finished INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (playlist_id, series_id)
+        );
+        CREATE INDEX series_progress_recent ON series_progress (playlist_id, updated_at);
       `);
     }
     await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);

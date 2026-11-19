@@ -1,17 +1,12 @@
+import type { CatalogCategory } from '../catalog/CatalogScreen';
 import { splitTitle } from '../core/vod';
 import { ALL, CONTINUE, FAVORITES, countMovieLists, listMovieCategories, listMovies, useMoviesVersion, type MovieItem, type MovieSort } from '../data/movies';
 import type { Playlist } from '../data/playlists';
 import { useI18n } from '../ui/i18n';
 import { useQuery } from '../ui/useQuery';
 
-export interface MovieCategoryItem {
-  id: string;
-  name: string;
-  count: number | null;
-}
-
 /** Continue watching and favourites (when they have something), all movies, then the provider's categories. */
-export function useMovieCategories(playlist: Playlist | null): MovieCategoryItem[] | null {
+export function useMovieCategories(playlist: Playlist | null): CatalogCategory[] | null {
   const { t } = useI18n();
   const version = useMoviesVersion();
   const key = playlist ? `${playlist.id}|${playlist.syncedAt ?? 0}` : null;
@@ -36,12 +31,6 @@ export function useMovieList(playlist: Playlist | null, categoryId: string | nul
   const version = useMoviesVersion();
   const key = playlist && categoryId ? `${playlist.id}|${playlist.syncedAt ?? 0}|${categoryId}|${query}|${sort}` : null;
   return useQuery(key, () => listMovies(playlist!.id, categoryId!, query, sort), version) ?? null;
-}
-
-/** First list: continue watching when something is started, else the first provider category. */
-export function defaultMovieCategory(items: readonly MovieCategoryItem[]): string {
-  if (items.find((c) => c.id === CONTINUE)?.count) return CONTINUE;
-  return items.find((c) => c.id !== CONTINUE && c.id !== FAVORITES && c.id !== ALL)?.id ?? ALL;
 }
 
 /** Display title and year (from the name, or the details when the name has none). */

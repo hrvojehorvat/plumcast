@@ -8,7 +8,7 @@ import { getMovie, setMovieFavorite, setWatched, useMoviesVersion, type MovieIte
 import type { Playlist } from '../../data/playlists';
 import { activePlaylist, usePlaylists } from '../../data/store';
 import { useMovieInfo } from '../../data/vod';
-import { Poster } from '../../movies/Poster';
+import { MoviePoster } from '../../movies/Poster';
 import { movieTitle } from '../../movies/useMovies';
 import { moviePlayer } from '../../player/store';
 import { Button } from '../../ui/Button';
@@ -138,7 +138,7 @@ function Details({ playlist, movie, wide, topInset }: { playlist: Playlist; movi
   const body = (
     <>
       <View style={[styles.top, !wide && styles.topPhone]}>
-        <Poster movie={poster} width={posterWidth} focused={false} titleless />
+        <MoviePoster movie={poster} width={posterWidth} focused={false} titleless />
         <View style={styles.flex}>
           <Text weight="bold" size={wide ? 40 : 26} numberOfLines={3} style={styles.title}>{title}</Text>
           {meta.length ? <Text size={15} color={colors.textSoft} style={styles.meta}>{meta.join('  ·  ')}</Text> : null}

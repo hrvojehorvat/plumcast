@@ -19,13 +19,13 @@ export interface MovieInfo {
   ext: string | null;
 }
 
-const text = (v: unknown): string | null => {
+export const text = (v: unknown): string | null => {
   const s = str(v)?.trim();
   return s ? s : null;
 };
 
 /** "A, B, A, A" → "A, B" (some servers repeat names). */
-function names(v: unknown): string | null {
+export function names(v: unknown): string | null {
   const raw = text(v);
   if (!raw) return null;
   const seen = new Set<string>();
@@ -42,7 +42,7 @@ function names(v: unknown): string | null {
 }
 
 /** "01:26:11" or "86" (minutes) → ms. */
-function parseDuration(info: Record<string, unknown>): number | null {
+export function parseDuration(info: Record<string, unknown>): number | null {
   const secs = num(info.duration_secs);
   if (secs && secs > 0) return secs * 1000;
   const clock = str(info.duration);
@@ -56,7 +56,7 @@ function parseDuration(info: Record<string, unknown>): number | null {
   return minutes && minutes > 0 ? minutes * 60_000 : null;
 }
 
-function parseYear(...values: unknown[]): number | null {
+export function parseYear(...values: unknown[]): number | null {
   for (const v of values) {
     const m = /\b(19\d{2}|20\d{2})\b/.exec(String(v ?? ''));
     if (m) return Number(m[1]);

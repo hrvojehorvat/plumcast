@@ -15,8 +15,8 @@ import { colors } from '../ui/tokens';
 import { addDigit, type PlayerKey } from './keys';
 import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, type Action } from './parts';
 import { ReplayPlayer } from './ReplayPlayer';
-import { MoviePlayer } from './MoviePlayer';
-import { livePlayer, useLiveSession, useMovieSession, type LiveSession } from './store';
+import { VodPlayer } from './VodPlayer';
+import { livePlayer, useLiveSession, useVodSession, vodKey, type LiveSession } from './store';
 import { usePlayerKeys } from './usePlayerKeys';
 import { Video } from './Video';
 
@@ -27,8 +27,8 @@ const RETRY_MS = 1500;
 /** Mounted once at the root; shows the full-screen player while a session is open (live or replay). */
 export function LivePlayerHost() {
   const session = useLiveSession();
-  const movie = useMovieSession();
-  if (movie) return <MoviePlayer key={`${movie.playlistId}|${movie.movie.id}`} session={movie} />;
+  const vod = useVodSession();
+  if (vod) return <VodPlayer key={vodKey(vod)} session={vod} />;
   if (!session) return null;
   return session.replay ? <ReplayPlayer session={session} replay={session.replay} /> : <LivePlayer session={session} />;
 }

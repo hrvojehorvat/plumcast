@@ -29,11 +29,26 @@ export function ActionBar({ actions, highlight, onRun }: { actions: Action[]; hi
  * A message in the middle of the player with its own buttons. On the remote they come before
  * the action bar in one ◀/▶ row; `highlight` is the highlighted button here (-1 = none).
  */
-export function ErrorCard({ title, hint, actions = [], highlight = -1, onRun }: { title: string; hint: string; actions?: Action[]; highlight?: number; onRun?: (action: Action) => void }) {
+export function ErrorCard({
+  title,
+  hint,
+  actions = [],
+  highlight = -1,
+  onRun,
+  icon = 'alert',
+}: {
+  title: string;
+  hint: string;
+  actions?: Action[];
+  highlight?: number;
+  onRun?: (action: Action) => void;
+  /** 'alert' (red) for problems; anything else is drawn in the accent colour. */
+  icon?: IconName;
+}) {
   return (
     <View style={playerStyles.center} pointerEvents="box-none">
       <View style={playerStyles.errorCard}>
-        <Icon name="alert" size={28} color="#ff8787" />
+        <Icon name={icon} size={28} color={icon === 'alert' ? '#ff8787' : colors.accentLight} />
         <Text weight="semibold" size={18} style={playerStyles.centerText}>{title}</Text>
         <Text size={14} color={colors.textMuted} style={playerStyles.centerText}>{hint}</Text>
         {actions.length ? (

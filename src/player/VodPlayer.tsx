@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useLockSpatialNavigation } from 'react-tv-space-navigation';
-import { formatClock, isFinished, movieSeekStep } from '../core/vod';
+import { episodeLabel, nextEpisode } from '../core/series';
+import { formatClock, isFinished, movieSeekStep, resumeAt } from '../core/vod';
 import { saveProgress } from '../data/movies';
+import type { Playlist } from '../data/playlists';
+import { getEpisodeProgress, saveEpisodeProgress } from '../data/series';
 import { usePlaylists } from '../data/store';
-import { movieUrl, useMovieInfo } from '../data/vod';
+import { episodeUrl, movieUrl, useMovieInfo } from '../data/vod';
 import { useI18n } from '../ui/i18n';
 import { Text } from '../ui/Text';
 import { colors } from '../ui/tokens';
 import { useLatest, useQuery } from '../ui/useQuery';
 import type { PlayerKey } from './keys';
 import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, type Action } from './parts';
-import { moviePlayer, type MovieSession } from './store';
+import { moviePlayer, type VodItem, type VodSession } from './store';
 import { usePlayerKeys } from './usePlayerKeys';
 import { Video } from './Video';
 
@@ -21,25 +24,54 @@ const SAVE_EVERY_MS = 10_000;
 const RETRIES = 2;
 const RETRY_MS = 1500;
 const TEN_MIN = 10 * 60_000;
+/** Seconds before the next episode starts by itself. */
+const NEXT_IN_S = 10;
+
+const itemId = (item: VodItem) => (item.kind === 'movie' ? item.movie.id : item.episode.id);
+
+function itemUrl(playlist: Playlist, item: VodItem) {
+  return item.kind === 'movie' ? movieUrl(playlist, item.movie) : episodeUrl(playlist, item.episode);
+}
+
+/** Stores the position of the movie, or of the episode (and where the series is up to). */
+function savePosition(playlistId: number, item: VodItem, positionMs: number, lengthMs: number | null, watched: boolean, notify: boolean) {
+  if (item.kind === 'movie') return saveProgress(playlistId, item.movie.id, positionMs, lengthMs, watched, notify);
+  const last = watched && !nextEpisode(item.seasons, item.episode.id);
+  return saveEpisodeProgress(playlistId, item.series.id, item.episode, positionMs, lengthMs, watched, last, notify);
+}
+
+/** Starts the next episode, where it was left off if it was started before. */
+async function playNext(session: VodSession) {
+  const { item } = session;
+  if (item.kind !== 'episode') return;
+  const next = nextEpisode(item.seasons, item.episode.id);
+  if (!next) return;
+  const saved = await getEpisodeProgress(session.playlistId, [next.id]).catch(() => new Map());
+  moviePlayer.openEpisode(session.playlistId, item.series, item.seasons, next, resumeAt(saved.get(next.id) ?? null) ?? 0);
+}
 
 /**
- * Full-screen movie playback. Movies are files, so seeking happens inside the open stream;
- * ◀/▶ collect a target first (growing steps) and jump once the keys rest.
+ * Full-screen movie / episode playback. These are files, so seeking happens inside the open
+ * stream; ◀/▶ collect a target first (growing steps) and jump once the keys rest. At the end of
+ * an episode the next one starts after a short countdown.
  */
-export function MoviePlayer({ session }: { session: MovieSession }) {
+export function VodPlayer({ session }: { session: VodSession }) {
   const { t } = useI18n();
   const { list } = usePlaylists();
   const playlist = list.find((p) => p.id === session.playlistId) ?? null;
-  const { movie } = session;
-  const info = useMovieInfo(playlist, movie.id);
+  const { item } = session;
+  const id = itemId(item);
+  const movie = item.kind === 'movie' ? item.movie : null;
+  const next = item.kind === 'episode' ? nextEpisode(item.seasons, item.episode.id) : null;
+  const info = useMovieInfo(playlist, movie?.id ?? null);
   const { lock, unlock } = useLockSpatialNavigation();
 
-  const url = useQuery(playlist ? `${playlist.id}|${movie.id}` : null, () => movieUrl(playlist!, movie));
+  const url = useQuery(playlist ? `${playlist.id}|${item.kind}|${id}` : null, () => itemUrl(playlist!, item));
 
   // Position and length in ms. The start of the current attempt is where a retry picks up.
   const [positionMs, setPositionMs] = useState(session.startMs);
   const [durationMs, setDurationMs] = useState<number | null>(null);
-  const length = durationMs ?? info?.durationMs ?? movie.progress?.durationMs ?? null;
+  const length = durationMs ?? (item.kind === 'movie' ? (info?.durationMs ?? item.movie.progress?.durationMs) : item.episode.durationMs) ?? null;
   const [attempt, setAttempt] = useState({ n: 0, fromMs: session.startMs, retries: 0 });
   const [playing, setPlaying] = useState(false);
   const [buffering, setBuffering] = useState(false);
@@ -83,16 +115,29 @@ export function MoviePlayer({ session }: { session: MovieSession }) {
       const { positionMs: at, length: of, playing: started, ended: done } = latest.current;
       if (!started && !done) return;
       const watched = done || isFinished(at, of);
-      saveProgress(playlist.id, movie.id, watched ? (of ?? at) : at, of, watched, notify).catch((error: unknown) =>
-        console.warn('[movies] could not save the position', error instanceof Error ? error.message : error),
+      savePosition(playlist.id, item, watched ? (of ?? at) : at, of, watched, notify).catch((error: unknown) =>
+        console.warn('[player] could not save the position', error instanceof Error ? error.message : error),
       );
     };
-    const id = setInterval(() => save(false), SAVE_EVERY_MS);
+    const timer = setInterval(() => save(false), SAVE_EVERY_MS);
     return () => {
-      clearInterval(id);
+      clearInterval(timer);
       save(true);
     };
-  }, [playlist, movie.id, latest]);
+  }, [playlist, item, latest]);
+
+  // Episode over: count down, then the next one.
+  const [countdown, setCountdown] = useState(NEXT_IN_S);
+  const counting = ended && next !== null;
+  useEffect(() => {
+    if (!counting) return;
+    if (countdown <= 0) {
+      void playNext(session);
+      return;
+    }
+    const timer = setTimeout(() => setCountdown((n) => n - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [counting, countdown, session]);
   useEffect(() => () => clearTimeout(seekTimer.current), []);
 
   const restartAt = (ms: number) => {
@@ -151,9 +196,12 @@ export function MoviePlayer({ session }: { session: MovieSession }) {
     { key: 'back', icon: 'rewind', label: t('player.back10'), run: () => jump(positionMs - TEN_MIN) },
     { key: 'fwd', icon: 'forward', label: t('player.forward10'), run: () => jump(positionMs + TEN_MIN) },
     { key: 'start', icon: 'catchup', label: t('player.restart'), run: () => jump(0) },
+    ...(next ? [{ key: 'nextEp', icon: 'next' as const, label: t('series.nextEpisode'), run: () => void playNext(session) }] : []),
     close,
   ];
-  const card: Action[] = ended
+  const card: Action[] = counting
+    ? [{ key: 'next', icon: 'next', label: t('series.playNow'), run: () => void playNext(session) }, close]
+    : ended
     ? [{ key: 'again', icon: 'catchup', label: t('player.watchAgain'), run: () => jump(0) }, close]
     : broken
       ? [{ key: 'retry', icon: 'catchup', label: t('player.tryAgain'), run: () => restartAt(positionMs) }, close]
@@ -244,8 +292,13 @@ export function MoviePlayer({ session }: { session: MovieSession }) {
 
       {cardCount ? (
         <ErrorCard
-          title={t(ended ? 'movies.ended' : 'movies.error')}
-          hint={t(ended ? 'movies.endedHint' : 'movies.errorHint')}
+          icon={ended ? (counting ? 'next' : 'check') : 'alert'}
+          title={counting ? t('series.nextIn', { s: countdown }) : t(ended ? (movie ? 'movies.ended' : 'series.ended') : movie ? 'movies.error' : 'series.error')}
+          hint={
+            counting && next
+              ? [episodeLabel(next), next.title].filter(Boolean).join('  ·  ')
+              : t(ended ? (movie ? 'movies.endedHint' : 'series.endedHint') : 'movies.errorHint')
+          }
           actions={card}
           highlight={hl.card}
           onRun={(a) => a.run()}
