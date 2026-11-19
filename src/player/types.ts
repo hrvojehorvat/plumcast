@@ -15,6 +15,12 @@ export interface VideoProps {
   onError?: (message: string) => void;
   /** Playback position in seconds, a few times a second. */
   onProgress?: (seconds: number) => void;
-  /** A replay reached its end. */
+  /** A replay or movie reached its end. */
   onEnd?: () => void;
+  /** Files (movies): start here, in seconds, once the file is open. */
+  startAt?: number;
+  /** Files: jump within the open file. A new object (even with the same seconds) seeks again. */
+  seek?: { seconds: number } | null;
+  /** Files: length in seconds once known. */
+  onDuration?: (seconds: number) => void;
 }

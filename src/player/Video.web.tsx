@@ -22,10 +22,11 @@ mpegts.LoggingControl.applyConfig({
  * Browser playback (dev testing). MPEG-TS goes through mpegts.js, HLS through hls.js (or
  * natively in Safari); both feed a plain <video> via Media Source Extensions.
  */
-export function Video({ url, muted, live = true, paused, style, onPlaying, onBuffering, onError, onProgress, onEnd }: VideoProps) {
+export function Video({ url, muted, live = true, paused, style, onPlaying, onBuffering, onError, onProgress, onEnd, startAt, seek, onDuration }: VideoProps) {
   const ref = useRef<HTMLVideoElement>(null);
-  const callbacks = useLatest({ onPlaying, onBuffering, onError, onProgress, onEnd });
+  const callbacks = useLatest({ onPlaying, onBuffering, onError, onProgress, onEnd, onDuration });
   const pausedRef = useLatest(paused);
+  const startRef = useLatest(startAt);
 
   useEffect(() => {
     const el = ref.current;
@@ -86,6 +87,12 @@ export function Video({ url, muted, live = true, paused, style, onPlaying, onBuf
     const onMediaError = () => fail(el.error?.message || `Media error ${el.error?.code ?? ''}`);
     const onTime = () => callbacks.current.onProgress?.(el.currentTime);
     const onEnded = () => callbacks.current.onEnd?.();
+    const onMeta = () => {
+      if (Number.isFinite(el.duration) && el.duration > 0) callbacks.current.onDuration?.(el.duration);
+      const start = startRef.current;
+      if (start && start > 0 && !live) el.currentTime = start;
+    };
+    el.addEventListener('loadedmetadata', onMeta);
     el.addEventListener('playing', onPlayingEvt);
     el.addEventListener('waiting', onWaiting);
     el.addEventListener('error', onMediaError);
@@ -97,9 +104,15 @@ export function Video({ url, muted, live = true, paused, style, onPlaying, onBuf
       el.removeEventListener('error', onMediaError);
       el.removeEventListener('timeupdate', onTime);
       el.removeEventListener('ended', onEnded);
+      el.removeEventListener('loadedmetadata', onMeta);
       destroy();
     };
-  }, [url, live, callbacks, pausedRef]);
+  }, [url, live, callbacks, pausedRef, startRef]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (el && seek && Number.isFinite(seek.seconds)) el.currentTime = Math.max(0, seek.seconds);
+  }, [seek]);
 
   useEffect(() => {
     const el = ref.current;

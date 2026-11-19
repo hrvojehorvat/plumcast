@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { Programme } from '../core/epg';
 import type { Channel } from '../data/live';
+import type { MovieItem } from '../data/movies';
 
 /**
  * The full-screen live player. It is drawn above the whole app, so the screen that opened
@@ -46,10 +47,12 @@ let lastWatched: Channel | null = null;
 
 export const livePlayer = {
   open(playlistId: number, list: Channel[], channel: Channel) {
+    setMovie(null);
     set({ playlistId, list, current: channel, previous: lastWatched && lastWatched.id !== channel.id ? lastWatched : null, replay: null });
   },
   /** Plays a programme from the archive, from its start or from `from`. */
   openReplay(playlistId: number, list: Channel[], channel: Channel, programme: Programme, from = programme.start) {
+    setMovie(null);
     const previous = session?.previous ?? (lastWatched && lastWatched.id !== channel.id ? lastWatched : null);
     set({ playlistId, list, current: channel, previous, replay: { programme, from } });
   },
@@ -87,5 +90,42 @@ export const livePlayer = {
     if (!session) return;
     const current = { ...session.current, ...patch };
     set({ ...session, current, list: session.list.map((c) => (c.id === current.id ? current : c)) });
+  },
+};
+
+// ---- movies ----
+
+/** A movie playing full screen (instead of a live / replay session; only one stream at a time). */
+export interface MovieSession {
+  playlistId: number;
+  movie: MovieItem;
+  /** Shown in the player; the provider's name without the year. */
+  title: string;
+  /** Where playback starts, ms into the file. */
+  startMs: number;
+}
+
+let movieSession: MovieSession | null = null;
+const movieListeners = new Set<() => void>();
+const setMovie = (next: MovieSession | null) => {
+  movieSession = next;
+  movieListeners.forEach((l) => l());
+};
+const subscribeMovie = (l: () => void) => {
+  movieListeners.add(l);
+  return () => movieListeners.delete(l);
+};
+
+export function useMovieSession(): MovieSession | null {
+  return useSyncExternalStore(subscribeMovie, () => movieSession, () => movieSession);
+}
+
+export const moviePlayer = {
+  open(playlistId: number, movie: MovieItem, title: string, startMs = 0) {
+    livePlayer.close();
+    setMovie({ playlistId, movie, title, startMs });
+  },
+  close() {
+    setMovie(null);
   },
 };

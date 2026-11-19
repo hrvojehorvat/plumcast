@@ -1,6 +1,6 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 let dbPromise: Promise<SQLiteDatabase> | null = null;
 
@@ -159,6 +159,23 @@ async function migrate(db: SQLiteDatabase) {
         );
         CREATE INDEX epg_by_channel ON epg (playlist_id, channel, start);
         UPDATE playlists SET epg_url = NULL;
+      `);
+    }
+    if (version < 4) {
+      // Where the user stopped in a movie or episode (keyed by the provider's id, survives a re-sync).
+      await db.execAsync(`
+        CREATE TABLE progress (
+          playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          item_id TEXT NOT NULL,
+          position_ms INTEGER NOT NULL,
+          duration_ms INTEGER,
+          watched INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (playlist_id, kind, item_id)
+        );
+        CREATE INDEX progress_recent ON progress (playlist_id, kind, updated_at);
+        CREATE INDEX movies_by_added ON movies (playlist_id, added_at);
       `);
     }
     await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);

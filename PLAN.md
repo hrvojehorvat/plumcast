@@ -90,6 +90,11 @@ Two ways in, both showing only programmes that really have a replay:
 - Category rows plus a poster grid; sort by recently added, A–Z or rating.
 - Detail page: poster/backdrop, plot, cast, director, year, rating, duration, trailer (opens YouTube).
 - Resume from the last position; mark as watched.
+- Built-in lists first: Continue watching (started, not finished), Favorites, All movies; then the provider's categories. Search covers the selected list only.
+- Position is saved every 10 s and on close (SQLite `progress` table, shared later with series episodes). Counts as watched in the last 4 minutes (credits) or at 95 %. Resume is offered after the first minute.
+- Player: ◀/▶ seek in growing steps (10 s → 30 s → 1 min → 5 min), −/+10 min, Start over; a dropped connection retries from the last position.
+- Coming back from a movie's page returns to the same list, sort and search, with the focus on that movie.
+- Provider quirks seen: years repeated in names ("Heartland (2026) (2026)") and names repeated in director/cast; both are cleaned up. Browsers may not play some MKV/AVI files or AC3 audio; the APK (Media3) does.
 
 ### 6. Series
 - Series grid, then detail (seasons as tabs), then the episode list with progress.

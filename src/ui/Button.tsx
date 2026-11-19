@@ -1,4 +1,6 @@
+import type { Ref } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import type { SpatialNavigationNodeRef } from 'react-tv-space-navigation';
 import { Focusable } from './Focusable';
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
@@ -11,14 +13,16 @@ type Props = {
   icon?: IconName;
   disabled?: boolean;
   busy?: boolean;
+  /** Lets the screen move remote focus here. */
+  focusRef?: Ref<SpatialNavigationNodeRef>;
 };
 
 /** Focusable pill button (remote, mouse and touch). */
-export function Button({ label, onPress, variant = 'secondary', icon, disabled, busy }: Props) {
+export function Button({ label, onPress, variant = 'secondary', icon, disabled, busy, focusRef }: Props) {
   const inactive = disabled || busy;
   const fg = variant === 'primary' ? '#ffffff' : variant === 'danger' ? '#ff8787' : colors.text;
   return (
-    <Focusable accessibilityLabel={label} onSelect={inactive ? undefined : onPress}>
+    <Focusable accessibilityLabel={label} onSelect={inactive ? undefined : onPress} focusRef={focusRef}>
       {({ isFocused }) => (
         <View style={[styles.base, styles[variant], isFocused && styles.focused, inactive && styles.inactive]}>
           {busy ? <ActivityIndicator size="small" color={fg} /> : icon ? <Icon name={icon} size={18} color={fg} /> : null}
