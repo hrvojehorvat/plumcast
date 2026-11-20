@@ -8,27 +8,22 @@ import { useI18n } from './i18n';
 import { Icon } from './Icon';
 import { LogoMark } from './Logo';
 import { colors, radius } from './tokens';
-import { useFocusSelect } from './useFocusSelect';
 import { useLatest } from './useQuery';
 
 /**
- * TV / desktop navigation rail (80 px). Resting the remote focus on an item opens that page, no OK needed.
+ * TV / desktop navigation rail. Moving the remote focus only moves the focus; OK opens the section.
  * Coming into the rail from the page (◀) always lands on the current section, never on the item the rail
- * remembers from before (that would open another section by itself).
+ * remembers from before.
  */
 export function Sidebar() {
   const { t } = useI18n();
   const active = navKeyForPath(usePathname());
-  const openOnFocus = useFocusSelect(active, (key: string) => {
-    const item = NAV_ITEMS.find((i) => i.key === key);
-    if (item) router.replace(item.href);
-  });
   const entry = useRailEntry(active);
 
   return (
     <View style={styles.rail}>
       <View style={styles.logo}>
-        <LogoMark size={38} />
+        <LogoMark size={30} />
       </View>
       <SpatialNavigationView direction="vertical" style={styles.items}>
         {NAV_ITEMS.map((item, i) => {
@@ -40,19 +35,16 @@ export function Sidebar() {
                 <Focusable
                   accessibilityLabel={t(`nav.${item.key}`)}
                   focusRef={entry.ref(item.key)}
-                  onFocus={() => {
-                    if (entry.focus(item.key)) openOnFocus.onFocus(item.key);
+                  onFocus={() => entry.focus(item.key)}
+                  onBlur={entry.blur}
+                  onSelect={() => {
+                    if (!isActive) router.replace(item.href);
                   }}
-                  onBlur={() => {
-                    entry.blur();
-                    openOnFocus.onBlur(item.key);
-                  }}
-                  onSelect={() => router.replace(item.href)}
                 >
                   {({ isFocused }) => (
                     <View style={[styles.item, isFocused && styles.focused]}>
                       {isActive && !isFocused ? <View style={styles.current} /> : null}
-                      <Icon name={item.key} color={isFocused ? colors.text : isActive ? colors.accentLight : colors.textFaint} />
+                      <Icon name={item.key} size={20} color={isFocused ? colors.text : isActive ? colors.accentLight : colors.textFaint} />
                     </View>
                   )}
                 </Focusable>
@@ -66,9 +58,9 @@ export function Sidebar() {
 }
 
 /**
- * Tracks whether the remote focus is already inside the rail. Focus moves blur the old item and focus the
- * new one in the same tick, so a blur followed at once by a focus is a move within the rail.
- * `focus(key)` returns false when the move was redirected to the current section.
+ * Sends the focus to the current section when it comes into the rail from the page. Focus moves blur
+ * the old item and focus the new one in the same tick, so a blur followed at once by a focus is a move
+ * within the rail.
  */
 function useRailEntry(active: string | null) {
   const nodes = useRef(new Map<string, SpatialNavigationNodeRef>());
@@ -88,16 +80,14 @@ function useRailEntry(active: string | null) {
       }
       return ref;
     },
-    focus(key: string): boolean {
+    focus(key: string) {
       const entering = !inside.current && !justLeft.current;
       inside.current = true;
       justLeft.current = false;
       const current = latest.current;
-      if (!entering || !current || key === current) return true;
+      if (!entering || !current || key === current) return;
       const target = nodes.current.get(current);
-      if (!target) return true;
-      setTimeout(() => target.focus(), 0);
-      return false;
+      if (target) setTimeout(() => target.focus(), 0);
     },
     blur() {
       inside.current = false;
@@ -111,26 +101,26 @@ function useRailEntry(active: string | null) {
 
 const styles = StyleSheet.create({
   rail: {
-    width: 80,
-    paddingVertical: 28,
+    width: 64,
+    paddingVertical: 14,
     alignItems: 'center',
     borderRightWidth: 1,
     borderRightColor: colors.border,
     backgroundColor: 'rgba(255,255,255,0.025)',
   },
-  logo: { marginBottom: 22 },
-  items: { gap: 8, alignItems: 'center' },
+  logo: { marginBottom: 12 },
+  items: { gap: 4, alignItems: 'center' },
   item: {
-    width: 48,
-    height: 48,
+    width: 42,
+    height: 42,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  divider: { width: 28, height: 1, marginVertical: 6, backgroundColor: colors.border },
+  divider: { width: 24, height: 1, marginVertical: 4, backgroundColor: colors.border },
   focused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
   /** The open section, when the focus is elsewhere: a small bar on the left, no box (that would look like a second focus). */
-  current: { position: 'absolute', left: -14, top: 14, bottom: 14, width: 3, borderRadius: 2, backgroundColor: colors.accentLight },
+  current: { position: 'absolute', left: -11, top: 12, bottom: 12, width: 3, borderRadius: 2, backgroundColor: colors.accentLight },
 });

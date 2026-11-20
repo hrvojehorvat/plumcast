@@ -1,4 +1,3 @@
-import { CurrentMark } from '../ui/CurrentMark';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -14,17 +13,18 @@ import {
 import { ALL, CONTINUE, FAVORITES } from '../data/movies';
 import type { Playlist } from '../data/playlists';
 import { activePlaylist, usePlaylists } from '../data/store';
+import { CATEGORY_ITEM, CategoryRow } from '../live/CategoryRow';
 import { useDebounced } from '../live/useLive';
 import { Button } from '../ui/Button';
 import { Focusable } from '../ui/Focusable';
 import { useI18n } from '../ui/i18n';
-import { Icon } from '../ui/Icon';
+import type { IconName } from '../ui/Icon';
 import { Screen } from '../ui/Screen';
 import { SearchField } from '../ui/SearchField';
 import { Segmented } from '../ui/Segmented';
 import { Text } from '../ui/Text';
-import { colors, radius } from '../ui/tokens';
-import { useFocusSelect } from '../ui/useFocusSelect';
+import { colors, radius, tv } from '../ui/tokens';
+import { useColumnEntry } from '../ui/useColumnEntry';
 import { useWideLayout } from '../ui/useWideLayout';
 import { POSTER_TEXT } from './Poster';
 
@@ -65,9 +65,8 @@ const memories: Record<SectionKey, Memory> = {
   movies: { category: null, sort: 'recent', query: '', focus: null },
   series: { category: null, sort: 'recent', query: '', focus: null },
 };
-const CATEGORY_ITEM = 52;
-const GAP = 18;
-const MIN_POSTER = 150;
+const GAP = 12;
+const MIN_POSTER = 110;
 
 /** Movies or series: categories, search and sort, then a poster grid. */
 export function CatalogScreen<T extends { id: string; name: string }>({ section }: { section: CatalogSection<T> }) {
@@ -163,7 +162,6 @@ function gridFor(width: number) {
 function WideCatalog<T extends { id: string; name: string }>({ section, playlist }: { section: CatalogSection<T>; playlist: Playlist }) {
   const texts = useTexts(section.key);
   const screen = useCatalog(section, playlist);
-  const focusCategory = useFocusSelect(screen.selected, screen.select);
   const memory = memories[section.key];
   const [categoryWidth, setCategoryWidth] = useState(0);
   const [gridWidth, setGridWidth] = useState(0);
@@ -172,6 +170,13 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
   const [returnId] = useState(() => memory.focus?.id ?? null);
   const returnCard = useRef<SpatialNavigationNodeRef>(null);
   const { columns, poster, rowHeight } = gridFor(gridWidth);
+  // Coming into the left column from outside (▶ from the menu) lands on the selected category, not
+  // on the search box at its top; ▲ from the sort buttons still reaches the search box.
+  const categoryList = useRef<SpatialNavigationVirtualizedListRef>(null);
+  const sideEntry = useColumnEntry(() => {
+    const index = screen.categories?.findIndex((c) => c.id === screen.selected) ?? -1;
+    if (index >= 0) categoryList.current?.focus(index);
+  });
 
   // Back from a detail page: put the focus on that item again.
   const { items, listKey } = screen;
@@ -193,12 +198,19 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
   return (
     <SpatialNavigationView direction="horizontal" style={styles.wide}>
       <SpatialNavigationView direction="vertical" style={styles.side}>
-        <Text weight="bold" size={30} style={styles.title}>{texts.title}</Text>
-        <SearchField value={screen.query} onChangeText={screen.setQuery} placeholder={texts.search(screen.category?.name ?? '')} />
-        <Segmented options={texts.sorts} value={screen.sort} onChange={screen.setSort} />
+        <Text weight="bold" size={tv.title} style={styles.title}>{texts.title}</Text>
+        <SearchField
+          value={screen.query}
+          onChangeText={screen.setQuery}
+          placeholder={texts.search(screen.category?.name ?? '')}
+          onFocus={() => sideEntry.focus()}
+          onBlur={sideEntry.blur}
+        />
+        <Segmented options={texts.sorts} value={screen.sort} onChange={screen.setSort} compact onFocus={() => sideEntry.focus()} onBlur={sideEntry.blur} />
         <View style={styles.listFill} onLayout={(e) => setCategoryWidth(e.nativeEvent.layout.width)}>
           {screen.categories && categoryWidth > 0 ? (
             <SpatialNavigationVirtualizedList
+              ref={categoryList}
               data={screen.categories}
               itemSize={CATEGORY_ITEM}
               orientation="vertical"
@@ -206,8 +218,8 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
               additionalItemsRendered={6}
               renderItem={({ item }: { item: CatalogCategory }) => (
                 <DefaultFocus enable={item.id === screen.selected && !memory.focus}>
-                  <Focusable accessibilityLabel={item.name} onFocus={() => focusCategory.onFocus(item.id)} onBlur={() => focusCategory.onBlur(item.id)} onSelect={() => screen.select(item.id)} style={{ width: categoryWidth }}>
-                    {({ isFocused }) => <CategoryRow item={item} selected={item.id === screen.selected} focused={isFocused} />}
+                  <Focusable accessibilityLabel={item.name} onFocus={() => sideEntry.focus(item.id === screen.selected)} onBlur={sideEntry.blur} onSelect={() => screen.select(item.id)} style={{ width: categoryWidth }}>
+                    {({ isFocused }) => <CategoryRow name={item.name} count={item.count} icon={categoryIcon(item.id)} selected={item.id === screen.selected} focused={isFocused} />}
                   </Focusable>
                 </DefaultFocus>
               )}
@@ -216,16 +228,16 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
         </View>
       </SpatialNavigationView>
 
-      <View style={styles.main}>
+      <SpatialNavigationView direction="vertical" style={styles.main}>
         <View style={styles.mainHead}>
-          <Text weight="semibold" size={20} numberOfLines={1} style={styles.flex}>{screen.category?.name ?? ''}</Text>
-          {screen.items ? <Text size={13} color={colors.textFaint}>{texts.count(screen.items.length)}</Text> : null}
+          <Text weight="semibold" size={tv.heading} numberOfLines={1} style={styles.flex}>{screen.category?.name ?? ''}</Text>
+          {screen.items ? <Text size={11} color={colors.textFaint}>{texts.count(screen.items.length)}</Text> : null}
         </View>
         <View style={styles.listFill} onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}>
           {screen.items === null || gridWidth === 0 ? (
-            <Text size={14} color={colors.textMuted}>{texts.loading}</Text>
+            <Text size={13} color={colors.textMuted}>{texts.loading}</Text>
           ) : screen.items.length === 0 ? (
-            <Text size={14} color={colors.textMuted} style={styles.empty}>{texts.empty(screen.selected, screen.debouncedQuery)}</Text>
+            <Text size={13} color={colors.textMuted} style={styles.empty}>{texts.empty(screen.selected, screen.debouncedQuery)}</Text>
           ) : (
             <SpatialNavigationVirtualizedGrid
               key={`${screen.listKey}|${columns}`}
@@ -244,23 +256,13 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
             />
           )}
         </View>
-      </View>
+      </SpatialNavigationView>
     </SpatialNavigationView>
   );
 }
 
-function CategoryRow({ item, selected, focused }: { item: CatalogCategory; selected: boolean; focused: boolean }) {
-  const icon = item.id === FAVORITES ? 'star' : item.id === CONTINUE ? 'play' : null;
-  return (
-    <View style={[styles.category, focused && styles.categoryFocused]}>
-      {selected && !focused ? <CurrentMark /> : null}
-      {icon ? <Icon name={icon} size={16} color={selected || focused ? colors.accentLight : colors.textFaint} /> : null}
-      <Text weight={selected ? 'semibold' : 'regular'} size={15} numberOfLines={1} color={focused ? colors.text : selected ? colors.accentLight : colors.textSoft} style={styles.flex}>
-        {item.name}
-      </Text>
-      {item.count !== null ? <Text size={12} color={colors.textFaint}>{item.count}</Text> : null}
-    </View>
-  );
+function categoryIcon(id: string): IconName | null {
+  return id === FAVORITES ? 'star' : id === CONTINUE ? 'play' : null;
 }
 
 // ---------------------------------------------------------------- phone
@@ -329,23 +331,12 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   title: { letterSpacing: -1 },
   inlineButton: { flexDirection: 'row' },
-  wide: { flex: 1, flexDirection: 'row', gap: 28, paddingHorizontal: 32, paddingTop: 32, paddingBottom: 24, backgroundColor: colors.bg },
-  side: { width: 270, gap: 14 },
+  wide: { flex: 1, flexDirection: 'row', gap: tv.gap, paddingHorizontal: tv.padX, paddingTop: tv.padTop, paddingBottom: tv.padBottom, backgroundColor: colors.bg },
+  side: { width: tv.side, gap: 10 },
   listFill: { flex: 1, minHeight: 0, overflow: 'hidden' },
-  category: {
-    height: CATEGORY_ITEM - 6,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
   categorySelected: { backgroundColor: colors.accentSoft },
-  categoryFocused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
-  main: { flex: 1, gap: 12, paddingTop: 8 },
-  mainHead: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  main: { flex: 1, minWidth: 0, gap: 8, paddingTop: 2 },
+  mainHead: { height: 26, flexDirection: 'row', alignItems: 'center', gap: 10 },
   gridRow: { gap: GAP },
   empty: { lineHeight: 20, maxWidth: 420 },
   phone: { flex: 1, backgroundColor: colors.bg },

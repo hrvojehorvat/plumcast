@@ -10,5 +10,5 @@ export function CurrentMark() {
 }
 
 const styles = StyleSheet.create({
-  mark: { position: 'absolute', left: 3, top: 12, bottom: 12, width: 3, borderRadius: 2, backgroundColor: colors.accentLight },
+  mark: { position: 'absolute', left: 3, top: '25%', bottom: '25%', width: 3, borderRadius: 2, backgroundColor: colors.accentLight },
 });

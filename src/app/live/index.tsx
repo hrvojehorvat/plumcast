@@ -1,8 +1,8 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DefaultFocus, SpatialNavigationView, SpatialNavigationVirtualizedList } from 'react-tv-space-navigation';
+import { DefaultFocus, SpatialNavigationView, SpatialNavigationVirtualizedList, type SpatialNavigationVirtualizedListRef } from 'react-tv-space-navigation';
 import { FAVORITES, RECENT, type Channel } from '../../data/live';
 import type { Playlist } from '../../data/playlists';
 import { activePlaylist, usePlaylists } from '../../data/store';
@@ -18,13 +18,12 @@ import { Icon } from '../../ui/Icon';
 import { Screen } from '../../ui/Screen';
 import { SearchField } from '../../ui/SearchField';
 import { Text } from '../../ui/Text';
-import { colors, radius } from '../../ui/tokens';
-import { useFocusSelect } from '../../ui/useFocusSelect';
+import { colors, radius, tv } from '../../ui/tokens';
+import { useColumnEntry } from '../../ui/useColumnEntry';
 import { useWideLayout } from '../../ui/useWideLayout';
 
 /** Remembered while the app runs, so coming back to Live TV opens the same list. */
 let lastCategory: string | null = null;
-const PREVIEW_DELAY_MS = 700;
 
 export default function LiveScreen() {
   const { t } = useI18n();
@@ -75,6 +74,10 @@ function emptyText(t: ReturnType<typeof useI18n>['t'], selected: string | null, 
 
 // ---------------------------------------------------------------- TV / desktop
 
+/**
+ * Three columns: categories, channels, preview. Moving only moves the focus (the pane shows what is on);
+ * OK opens a category, OK on a channel plays it in the preview, OK on the playing channel goes full screen.
+ */
 function WideLive({ playlist }: { playlist: Playlist }) {
   const { t } = useI18n();
   const live = useLiveScreen(playlist);
@@ -85,68 +88,85 @@ function WideLive({ playlist }: { playlist: Playlist }) {
   const [categoryWidth, setCategoryWidth] = useState(0);
   const [channelWidth, setChannelWidth] = useState(0);
 
-  // Start the small preview once the focus rests on a channel.
-  useEffect(() => {
-    if (!focused) return;
-    const id = setTimeout(() => setPreview(focused), PREVIEW_DELAY_MS);
-    return () => clearTimeout(id);
-  }, [focused]);
-
-  const openFull = (channel: Channel) => {
-    setPreview(channel);
-    live.open(channel);
+  const choose = (channel: Channel) => {
+    if (preview?.id === channel.id) live.open(channel);
+    else setPreview(channel);
   };
+  const shown = preview ?? focused;
 
-  const shown = focused ?? preview;
-  const focusCategory = useFocusSelect(live.selected, live.select);
+  // Coming into a column sideways lands on the selected category / the channel you were on, not on
+  // the first category or the search box above the channels (▲ from the list still reaches it).
+  const categoryList = useRef<SpatialNavigationVirtualizedListRef>(null);
+  const categoryEntry = useColumnEntry(() => {
+    const index = live.categories?.findIndex((c) => c.id === live.selected) ?? -1;
+    if (index >= 0) categoryList.current?.focus(index);
+  });
+  const channelList = useRef<SpatialNavigationVirtualizedListRef>(null);
+  const lastChannel = useRef<string | null>(null);
+  const channelEntry = useColumnEntry(() => {
+    if (!live.channels?.length) return;
+    channelList.current?.focus(Math.max(0, live.channels.findIndex((c) => c.id === lastChannel.current)));
+  });
 
   return (
     <SpatialNavigationView direction="horizontal" style={styles.wide}>
       {/* Categories */}
-      <View style={styles.categories}>
-        <Text weight="bold" size={30} style={styles.title}>{t('nav.live')}</Text>
-        <SpatialNavigationView direction="vertical" style={styles.flex}>
-          {/* Always mounted, so the list keeps its place before the button for the remote. */}
-          <SpatialNavigationView direction="vertical" style={styles.listFill}>
-            <View style={styles.flex} onLayout={(e) => setCategoryWidth(e.nativeEvent.layout.width)}>
-              {live.categories && categoryWidth > 0 ? (
-                <SpatialNavigationVirtualizedList
-                  data={live.categories}
-                  itemSize={CATEGORY_ITEM}
-                  orientation="vertical"
-                  scrollBehavior="stick-to-start"
-                  additionalItemsRendered={6}
-                  renderItem={({ item }: { item: CategoryItem }) => (
-                    <DefaultFocus enable={item.id === live.selected}>
-                      <Focusable accessibilityLabel={item.name} onFocus={() => focusCategory.onFocus(item.id)} onBlur={() => focusCategory.onBlur(item.id)} onSelect={() => live.select(item.id)} style={{ width: categoryWidth }}>
-                        {({ isFocused }) => <CategoryRow item={item} selected={item.id === live.selected} focused={isFocused} />}
-                      </Focusable>
-                    </DefaultFocus>
-                  )}
-                />
-              ) : null}
-            </View>
-          </SpatialNavigationView>
-          <View style={styles.editButton}>
-            <Button icon="edit" label={t('live.editCategories')} onPress={() => router.push('/live/categories')} />
+      <SpatialNavigationView direction="vertical" style={styles.categories}>
+        <Text weight="bold" size={tv.title} style={styles.title}>{t('nav.live')}</Text>
+        {/* Always mounted, so the list keeps its place before the button for the remote. */}
+        <SpatialNavigationView direction="vertical" style={styles.listFill}>
+          <View style={styles.flex} onLayout={(e) => setCategoryWidth(e.nativeEvent.layout.width)}>
+            {live.categories && categoryWidth > 0 ? (
+              <SpatialNavigationVirtualizedList
+                ref={categoryList}
+                data={live.categories}
+                itemSize={CATEGORY_ITEM}
+                orientation="vertical"
+                scrollBehavior="stick-to-start"
+                additionalItemsRendered={6}
+                renderItem={({ item }: { item: CategoryItem }) => (
+                  <DefaultFocus enable={item.id === live.selected}>
+                    <Focusable
+                      accessibilityLabel={item.name}
+                      onFocus={() => categoryEntry.focus(item.id === live.selected)}
+                      onBlur={categoryEntry.blur}
+                      onSelect={() => live.select(item.id)}
+                      style={{ width: categoryWidth }}
+                    >
+                      {({ isFocused }) => <CategoryRow name={item.name} count={item.count} icon={categoryIcon(item.id)} selected={item.id === live.selected} focused={isFocused} />}
+                    </Focusable>
+                  </DefaultFocus>
+                )}
+              />
+            ) : null}
           </View>
         </SpatialNavigationView>
-      </View>
+        <View style={styles.editButton}>
+          <Button compact icon="edit" label={t('live.editCategories')} onPress={() => router.push('/live/categories')} onFocus={() => categoryEntry.focus()} onBlur={categoryEntry.blur} />
+        </View>
+      </SpatialNavigationView>
 
       {/* Channels */}
       <SpatialNavigationView direction="vertical" style={styles.channels}>
         <View style={styles.channelsHead}>
-          <Text weight="semibold" size={20} numberOfLines={1} style={styles.flex}>{live.category?.name ?? ''}</Text>
-          {live.channels ? <Text size={13} color={colors.textFaint}>{t('live.channelCount', { n: live.channels.length })}</Text> : null}
+          <Text weight="semibold" size={tv.heading} numberOfLines={1} style={styles.flex}>{live.category?.name ?? ''}</Text>
+          {live.channels ? <Text size={11} color={colors.textFaint}>{live.channels.length}</Text> : null}
         </View>
-        <SearchField value={live.query} onChangeText={live.setQuery} placeholder={t('live.search', { category: live.category?.name ?? '' })} />
+        <SearchField
+          value={live.query}
+          onChangeText={live.setQuery}
+          placeholder={t('live.search', { category: live.category?.name ?? '' })}
+          onFocus={() => channelEntry.focus()}
+          onBlur={channelEntry.blur}
+        />
         <View style={styles.listFill} onLayout={(e) => setChannelWidth(e.nativeEvent.layout.width)}>
           {live.channels === null || channelWidth === 0 ? (
-            <Text size={14} color={colors.textMuted}>{t('live.loading')}</Text>
+            <Text size={13} color={colors.textMuted}>{t('live.loading')}</Text>
           ) : live.channels.length === 0 ? (
-            <Text size={14} color={colors.textMuted} style={styles.empty}>{emptyText(t, live.selected, live.debouncedQuery)}</Text>
+            <Text size={13} color={colors.textMuted} style={styles.empty}>{emptyText(t, live.selected, live.debouncedQuery)}</Text>
           ) : (
             <SpatialNavigationVirtualizedList
+              ref={channelList}
               key={`${live.selected}|${live.debouncedQuery}`}
               data={live.channels}
               itemSize={ROW_HEIGHT + ROW_GAP}
@@ -154,7 +174,14 @@ function WideLive({ playlist }: { playlist: Playlist }) {
               scrollBehavior="stick-to-start"
               additionalItemsRendered={4}
               renderItem={({ item }: { item: Channel }) => (
-                <Focusable accessibilityLabel={item.name} onSelect={() => openFull(item)} onFocus={() => setFocused(item)} style={{ width: channelWidth }}>
+                <Focusable accessibilityLabel={item.name} onSelect={() => choose(item)} onFocus={() => {
+                    lastChannel.current = item.id;
+                    channelEntry.focus(true);
+                    setFocused(item);
+                  }}
+                  onBlur={channelEntry.blur}
+                  style={{ width: channelWidth }}
+                >
                   {({ isFocused }) => <ChannelRow channel={item} playlist={playlist} focused={isFocused} active={preview?.id === item.id} />}
                 </Focusable>
               )}
@@ -167,6 +194,10 @@ function WideLive({ playlist }: { playlist: Playlist }) {
       <PreviewPane playlist={playlist} channel={shown} playing={!session && preview !== null && shown?.id === preview.id} />
     </SpatialNavigationView>
   );
+}
+
+function categoryIcon(id: string) {
+  return id === FAVORITES ? 'star' : id === RECENT ? 'catchup' : null;
 }
 
 // ---------------------------------------------------------------- phone
@@ -222,12 +253,12 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   title: { letterSpacing: -1 },
   inlineButton: { flexDirection: 'row' },
-  wide: { flex: 1, flexDirection: 'row', gap: 28, paddingHorizontal: 32, paddingTop: 32, paddingBottom: 24, backgroundColor: colors.bg },
-  categories: { width: 270, gap: 16 },
+  wide: { flex: 1, flexDirection: 'row', gap: tv.gap, paddingHorizontal: tv.padX, paddingTop: tv.padTop, paddingBottom: tv.padBottom, backgroundColor: colors.bg },
+  categories: { width: tv.side, gap: 10 },
   listFill: { flex: 1, minHeight: 0, overflow: 'hidden' },
-  editButton: { paddingTop: 12, flexDirection: 'row' },
-  channels: { flex: 1, gap: 12, paddingTop: 8 },
-  channelsHead: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  editButton: { paddingTop: 8, flexDirection: 'row' },
+  channels: { flex: 1, minWidth: 0, gap: 8, paddingTop: 2 },
+  channelsHead: { height: 26, flexDirection: 'row', alignItems: 'center', gap: 8 },
   empty: { lineHeight: 20, maxWidth: 420 },
   phone: { flex: 1, backgroundColor: colors.bg },
   phoneHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20 },

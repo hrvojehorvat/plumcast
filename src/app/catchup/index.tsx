@@ -1,4 +1,3 @@
-import { CurrentMark } from '../../ui/CurrentMark';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -11,23 +10,22 @@ import { useRecentlyAired } from '../../data/catchup';
 import { ALL, FAVORITES, type Channel } from '../../data/live';
 import type { Playlist } from '../../data/playlists';
 import { activePlaylist, usePlaylists } from '../../data/store';
+import { CATEGORY_ITEM, CategoryRow } from '../../live/CategoryRow';
 import { ChannelRow, ROW_GAP, ROW_HEIGHT } from '../../live/ChannelRow';
 import { useDebounced, type CategoryItem } from '../../live/useLive';
 import { Button } from '../../ui/Button';
 import { Focusable } from '../../ui/Focusable';
 import { useI18n } from '../../ui/i18n';
-import { Icon } from '../../ui/Icon';
+import type { IconName } from '../../ui/Icon';
 import { Screen } from '../../ui/Screen';
 import { SearchField } from '../../ui/SearchField';
 import { Text } from '../../ui/Text';
-import { colors, radius } from '../../ui/tokens';
-import { useFocusSelect } from '../../ui/useFocusSelect';
+import { colors, radius, tv } from '../../ui/tokens';
+import { useColumnEntry } from '../../ui/useColumnEntry';
 import { useWideLayout } from '../../ui/useWideLayout';
 
 /** Remembered while the app runs, so coming back opens the same list. */
 let lastCategory: string | null = null;
-const CATEGORY_ITEM = 52;
-const PANE_DELAY_MS = 400;
 
 export default function CatchupScreen() {
   const { t } = useI18n();
@@ -77,32 +75,42 @@ function emptyText(t: ReturnType<typeof useI18n>['t'], categories: CategoryItem[
 function WideCatchup({ playlist }: { playlist: Playlist }) {
   const { t } = useI18n();
   const screen = useCatchupScreen(playlist);
-  const [focused, setFocused] = useState<Channel | null>(null);
+  const [picked, setPicked] = useState<Channel | null>(null);
   const [categoryWidth, setCategoryWidth] = useState(0);
   const [channelWidth, setChannelWidth] = useState(0);
   const channels = screen.channels;
-  // The pane follows the focused channel at once (so ▶ always opens the right one); only its
-  // programmes wait a moment. Before anything is focused it shows the first channel.
-  const paneChannel = (focused && channels?.find((c) => c.id === focused.id)) || channels?.[0] || null;
-
-  // Remote: ▶ always goes one column on (categories → the selected channel → its replays) and
-  // ◀ one column back, to the channel you were on, never past it or to the search box.
-  const column = useRef<'categories' | 'channels' | 'pane' | null>(null);
-  const channelList = useRef<SpatialNavigationVirtualizedListRef>(null);
-  const focusChannel = () => {
-    const index = channels?.findIndex((c) => c.id === paneChannel?.id) ?? -1;
-    setTimeout(() => channelList.current?.focus(Math.max(0, index)), 0);
+  // Moving through the list opens nothing: OK picks the channel whose replays the pane shows,
+  // OK again opens that channel's replays full screen.
+  const paneChannel = (picked && channels?.find((c) => c.id === picked.id)) || null;
+  const pick = (channel: Channel) => {
+    if (paneChannel?.id === channel.id) router.push(`/catchup/${encodeURIComponent(channel.id)}`);
+    else setPicked(channel);
   };
+
+  // Every column is its own always-mounted navigation node, so ◀ / ▶ always go one column back / on.
+  // Coming in sideways lands on the selected category / the channel you were on, not on the first
+  // category or the search box above the channels (▲ from the list still reaches it).
+  const categoryList = useRef<SpatialNavigationVirtualizedListRef>(null);
+  const categoryEntry = useColumnEntry(() => {
+    const index = screen.categories?.findIndex((c) => c.id === screen.selected) ?? -1;
+    if (index >= 0) categoryList.current?.focus(index);
+  });
+  const lastChannel = useRef<string | null>(null);
+  const channelList = useRef<SpatialNavigationVirtualizedListRef>(null);
+  const channelEntry = useColumnEntry(() => {
+    if (!channels?.length) return;
+    channelList.current?.focus(Math.max(0, channels.findIndex((c) => c.id === lastChannel.current)));
+  });
   const hasChannels = screen.selected !== AIRED && !!channels?.length;
-  const focusCategory = useFocusSelect(screen.selected, screen.select);
 
   return (
     <SpatialNavigationView direction="horizontal" style={styles.wide}>
-      <View style={styles.categories}>
-        <Text weight="bold" size={30} style={styles.title}>{t('nav.catchup')}</Text>
+      <SpatialNavigationView direction="vertical" style={styles.categories}>
+        <Text weight="bold" size={tv.title} style={styles.title}>{t('nav.catchup')}</Text>
         <View style={styles.listFill} onLayout={(e) => setCategoryWidth(e.nativeEvent.layout.width)}>
           {screen.categories && categoryWidth > 0 ? (
             <SpatialNavigationVirtualizedList
+              ref={categoryList}
               data={screen.categories}
               itemSize={CATEGORY_ITEM}
               orientation="vertical"
@@ -112,54 +120,47 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
                 <DefaultFocus enable={item.id === screen.selected}>
                   <Focusable
                     accessibilityLabel={item.name}
-                    onFocus={() => {
-                      if (column.current === 'pane' && hasChannels) return focusChannel();
-                      column.current = 'categories';
-                      focusCategory.onFocus(item.id);
-                    }}
-                    onBlur={() => focusCategory.onBlur(item.id)}
+                    onFocus={() => categoryEntry.focus(item.id === screen.selected)}
+                    onBlur={categoryEntry.blur}
                     onSelect={() => screen.select(item.id)}
                     style={{ width: categoryWidth }}
                   >
-                    {({ isFocused }) => <CategoryRow item={item} selected={item.id === screen.selected} focused={isFocused} />}
+                    {({ isFocused }) => <CategoryRow name={item.name} count={item.count} icon={categoryIcon(item.id)} selected={item.id === screen.selected} focused={isFocused} />}
                   </Focusable>
                 </DefaultFocus>
               )}
             />
           ) : null}
         </View>
-      </View>
+      </SpatialNavigationView>
 
       {screen.selected === AIRED ? (
-        <View style={styles.aired}>
+        <SpatialNavigationView direction="vertical" style={styles.aired}>
           <View style={styles.head}>
-            <Text weight="semibold" size={20} numberOfLines={1} style={styles.flex}>{t('catchup.recent')}</Text>
-            <Text size={13} color={colors.textFaint}>{t('catchup.recentHint')}</Text>
+            <Text weight="semibold" size={tv.heading} numberOfLines={1} style={styles.flex}>{t('catchup.recent')}</Text>
+            <Text size={11} color={colors.textFaint} numberOfLines={1}>{t('catchup.recentHint')}</Text>
           </View>
           <AiredList playlist={playlist} items={screen.aired} wide />
-        </View>
+        </SpatialNavigationView>
       ) : (
         <>
           <SpatialNavigationView direction="vertical" style={styles.channels}>
             <View style={styles.head}>
-              <Text weight="semibold" size={20} numberOfLines={1} style={styles.flex}>{screen.category?.name ?? ''}</Text>
-              {channels ? <Text size={13} color={colors.textFaint}>{t('live.channelCount', { n: channels.length })}</Text> : null}
+              <Text weight="semibold" size={tv.heading} numberOfLines={1} style={styles.flex}>{screen.category?.name ?? ''}</Text>
+              {channels ? <Text size={11} color={colors.textFaint}>{channels.length}</Text> : null}
             </View>
             <SearchField
               value={screen.query}
               onChangeText={screen.setQuery}
               placeholder={t('live.search', { category: screen.category?.name ?? '' })}
-              // Sideways into this column lands on the channel, not the search box (that's ▲).
-              onFocus={() => {
-                if (column.current !== 'channels' && hasChannels) return focusChannel();
-                column.current = 'channels';
-              }}
+              onFocus={() => channelEntry.focus()}
+              onBlur={channelEntry.blur}
             />
             <View style={styles.listFill} onLayout={(e) => setChannelWidth(e.nativeEvent.layout.width)}>
               {channels === null || channelWidth === 0 ? (
-                <Text size={14} color={colors.textMuted}>{t('catchup.loading')}</Text>
+                <Text size={13} color={colors.textMuted}>{t('catchup.loading')}</Text>
               ) : channels.length === 0 ? (
-                <Text size={14} color={colors.textMuted} style={styles.empty}>{emptyText(t, screen.categories, screen.debouncedQuery)}</Text>
+                <Text size={13} color={colors.textMuted} style={styles.empty}>{emptyText(t, screen.categories, screen.debouncedQuery)}</Text>
               ) : (
                 <SpatialNavigationVirtualizedList
                   ref={channelList}
@@ -173,10 +174,11 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
                     <Focusable
                       accessibilityLabel={item.name}
                       onFocus={() => {
-                        column.current = 'channels';
-                        setFocused(item);
+                        lastChannel.current = item.id;
+                        channelEntry.focus(true);
                       }}
-                      onSelect={() => router.push(`/catchup/${encodeURIComponent(item.id)}`)}
+                      onBlur={channelEntry.blur}
+                      onSelect={() => pick(item)}
                       style={{ width: channelWidth }}
                     >
                       {({ isFocused }) => <ChannelRow channel={item} playlist={playlist} focused={isFocused} active={paneChannel?.id === item.id} />}
@@ -187,31 +189,25 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
             </View>
           </SpatialNavigationView>
 
-          <View style={styles.pane}>
+          <SpatialNavigationView direction="vertical" style={styles.pane}>
             <View style={styles.head}>
-              <Text weight="semibold" size={20} numberOfLines={1} style={styles.flex}>{paneChannel?.name ?? ''}</Text>
-              {paneChannel ? <Text size={13} color={colors.textFaint}>{t('catchup.days', { n: replayDays(paneChannel) })}</Text> : null}
+              <Text weight="semibold" size={tv.heading} numberOfLines={1} style={styles.flex}>{paneChannel?.name ?? ''}</Text>
+              {paneChannel ? <Text size={11} color={colors.textFaint}>{t('catchup.days', { n: replayDays(paneChannel) })}</Text> : null}
             </View>
-            {paneChannel ? <ArchivePane key={paneChannel.id} playlist={playlist} channel={paneChannel} list={channels} wide loadDelayMs={PANE_DELAY_MS} onFocusIn={() => (column.current = 'pane')} /> : null}
-          </View>
+            {paneChannel ? (
+              <ArchivePane key={paneChannel.id} playlist={playlist} channel={paneChannel} list={channels} wide />
+            ) : hasChannels ? (
+              <Text size={13} color={colors.textMuted} style={styles.empty}>{t('catchup.pickChannel')}</Text>
+            ) : null}
+          </SpatialNavigationView>
         </>
       )}
     </SpatialNavigationView>
   );
 }
 
-function CategoryRow({ item, selected, focused }: { item: CategoryItem; selected: boolean; focused: boolean }) {
-  const icon = item.id === FAVORITES ? 'star' : item.id === AIRED ? 'archive' : null;
-  return (
-    <View style={[styles.category, focused && styles.categoryFocused]}>
-      {selected && !focused ? <CurrentMark /> : null}
-      {icon ? <Icon name={icon} size={16} color={selected || focused ? colors.accentLight : colors.textFaint} /> : null}
-      <Text weight={selected ? 'semibold' : 'regular'} size={15} numberOfLines={1} color={focused ? colors.text : selected ? colors.accentLight : colors.textSoft} style={styles.flex}>
-        {item.name}
-      </Text>
-      {item.count !== null ? <Text size={12} color={colors.textFaint}>{item.count}</Text> : null}
-    </View>
-  );
+function categoryIcon(id: string): IconName | null {
+  return id === FAVORITES ? 'star' : id === AIRED ? 'archive' : null;
 }
 
 // ---------------------------------------------------------------- phone
@@ -270,25 +266,14 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   title: { letterSpacing: -1 },
   inlineButton: { flexDirection: 'row' },
-  wide: { flex: 1, flexDirection: 'row', gap: 28, paddingHorizontal: 32, paddingTop: 32, paddingBottom: 24, backgroundColor: colors.bg },
-  categories: { width: 270, gap: 16 },
+  wide: { flex: 1, flexDirection: 'row', gap: tv.gap, paddingHorizontal: tv.padX, paddingTop: tv.padTop, paddingBottom: tv.padBottom, backgroundColor: colors.bg },
+  categories: { width: tv.side, gap: 10 },
   listFill: { flex: 1, minHeight: 0, overflow: 'hidden' },
-  category: {
-    height: CATEGORY_ITEM - 6,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  categoryFocused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
-  channels: { flex: 1, gap: 12, paddingTop: 8 },
-  pane: { flex: 1.2, gap: 12, paddingTop: 8 },
-  aired: { flex: 1, gap: 12, paddingTop: 8, maxWidth: 900 },
-  head: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  empty: { lineHeight: 20, maxWidth: 420 },
+  channels: { flex: 1, minWidth: 0, gap: 8, paddingTop: 2 },
+  pane: { flex: 1.2, minWidth: 0, gap: 8, paddingTop: 2 },
+  aired: { flex: 1, minWidth: 0, gap: 8, paddingTop: 2, maxWidth: 760 },
+  head: { height: 26, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  empty: { lineHeight: 18, maxWidth: 360 },
   phone: { flex: 1, backgroundColor: colors.bg },
   phonePad: { paddingHorizontal: 20 },
   phoneTop: { paddingTop: 4 },

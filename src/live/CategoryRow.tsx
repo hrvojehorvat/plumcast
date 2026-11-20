@@ -1,25 +1,25 @@
-import { CurrentMark } from '../ui/CurrentMark';
 import { StyleSheet, View } from 'react-native';
-import { FAVORITES, RECENT } from '../data/live';
-import { Icon } from '../ui/Icon';
+import { CurrentMark } from '../ui/CurrentMark';
+import { Icon, type IconName } from '../ui/Icon';
 import { Text } from '../ui/Text';
 import { colors, radius } from '../ui/tokens';
-import type { CategoryItem } from './useLive';
 
 /** Height of one row in a category column (row plus gap). */
-export const CATEGORY_ITEM = 52;
+export const CATEGORY_ITEM = 40;
 
-/** A live category in the left column (Live TV, TV guide). */
-export function CategoryRow({ item, selected, focused }: { item: CategoryItem; selected: boolean; focused: boolean }) {
-  const icon = item.id === FAVORITES ? 'star' : item.id === RECENT ? 'catchup' : null;
+/**
+ * A category in a left column (Live TV, Movies, Series, Catch-up, TV guide). The focused row gets the
+ * fill and ring; the open category only a thin bar, so the remote focus never shows twice.
+ */
+export function CategoryRow({ name, count, icon, selected, focused }: { name: string; count: number | null; icon?: IconName | null; selected: boolean; focused: boolean }) {
   return (
     <View style={[styles.category, focused && styles.focused]}>
       {selected && !focused ? <CurrentMark /> : null}
-      {icon ? <Icon name={icon} size={16} color={selected || focused ? colors.accentLight : colors.textFaint} /> : null}
-      <Text weight={selected ? 'semibold' : 'regular'} size={15} numberOfLines={1} color={focused ? colors.text : selected ? colors.accentLight : colors.textSoft} style={styles.flex}>
-        {item.name}
+      {icon ? <Icon name={icon} size={14} color={selected || focused ? colors.accentLight : colors.textFaint} /> : null}
+      <Text weight={selected ? 'semibold' : 'regular'} size={13} numberOfLines={1} color={focused ? colors.text : selected ? colors.accentLight : colors.textSoft} style={styles.flex}>
+        {name}
       </Text>
-      {item.count !== null ? <Text size={12} color={colors.textFaint}>{item.count}</Text> : null}
+      {count !== null ? <Text size={11} color={colors.textFaint}>{count}</Text> : null}
     </View>
   );
 }
@@ -27,15 +27,15 @@ export function CategoryRow({ item, selected, focused }: { item: CategoryItem; s
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   category: {
-    height: CATEGORY_ITEM - 6,
-    paddingHorizontal: 14,
+    height: CATEGORY_ITEM - 4,
+    paddingLeft: 12,
+    paddingRight: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  selected: { backgroundColor: colors.accentSoft },
   focused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
 });

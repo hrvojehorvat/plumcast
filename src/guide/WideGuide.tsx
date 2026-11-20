@@ -14,30 +14,29 @@ import { formatDay } from '../core/format';
 import { addDays, layoutRow, type GuideCell } from '../core/guide';
 import { cancelGuideSync, syncGuide } from '../data/guide';
 import { useNow } from '../data/epg';
-import type { Channel } from '../data/live';
+import { FAVORITES, RECENT, type Channel } from '../data/live';
 import type { Playlist } from '../data/playlists';
 import { CATEGORY_ITEM, CategoryRow } from '../live/CategoryRow';
 import { ChannelLogo } from '../live/ChannelRow';
 import type { CategoryItem } from '../live/useLive';
 import { Button } from '../ui/Button';
 import { Focusable } from '../ui/Focusable';
-import { Icon } from '../ui/Icon';
+import { Icon, type IconName } from '../ui/Icon';
 import { useI18n } from '../ui/i18n';
 import { Text } from '../ui/Text';
-import { colors, radius } from '../ui/tokens';
-import { useFocusSelect } from '../ui/useFocusSelect';
+import { colors, radius, tv } from '../ui/tokens';
+import { useColumnEntry } from '../ui/useColumnEntry';
 import { useTimeFormat } from '../ui/useTimeFormat';
 import { ProgrammeDialog } from './ProgrammeDialog';
 import { useChannelProgrammes } from './useGuide';
 import { useGuideScreen, useGuideStatusLine } from './useGuideScreen';
 
-const ROW = 64;
-const ROW_GAP = 6;
-const CHANNEL_W = 210;
-const GAP = 6;
+const ROW = 46;
+const ROW_GAP = 5;
+const CHANNEL_W = 150;
+const GAP = 5;
 /** About this many minutes fit on screen. */
-const VISIBLE_MIN = 120;
-/** How long the focus rests on a category before the guide switches to it. */
+const VISIBLE_MIN = 90;
 const HALF_HOUR = 30 * 60_000;
 
 const floorHalfHour = (ms: number) => Math.floor(ms / HALF_HOUR) * HALF_HOUR;
@@ -88,13 +87,13 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
 
   const area = useRef<'categories' | 'days' | 'grid'>('grid');
   const list = useRef<SpatialNavigationVirtualizedListRef>(null);
+  // Coming into the categories sideways lands on the selected one, not the first.
+  const categoryList = useRef<SpatialNavigationVirtualizedListRef>(null);
+  const categoryEntry = useColumnEntry(() => {
+    const index = guide.categories?.findIndex((c) => c.id === guide.selected) ?? -1;
+    if (index >= 0) categoryList.current?.focus(index);
+  });
 
-  // Moving through the categories switches the guide once the focus rests a moment.
-  const selectOnFocus = useFocusSelect(guide.selected, guide.selectCategory);
-  const focusCategory = (id: string) => {
-    area.current = 'categories';
-    selectOnFocus.onFocus(id);
-  };
 
   // ▶ from the categories lands on the day chips (the right column's first row); send it on to the channels.
   const focusDay = () => {
@@ -113,14 +112,15 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
     <SpatialNavigationView direction="horizontal" style={styles.root}>
       {/* Categories */}
       <View style={styles.side}>
-        <Text weight="bold" size={30} style={styles.title}>{t('nav.guide')}</Text>
-        {line.text ? <Text size={13} color={line.problem ? '#ffc9c9' : colors.textFaint} numberOfLines={3} style={styles.status}>{line.text}</Text> : null}
+        <Text weight="bold" size={tv.title} style={styles.title}>{t('nav.guide')}</Text>
+        {line.text ? <Text size={11} color={line.problem ? '#ffc9c9' : colors.textFaint} numberOfLines={3} style={styles.status}>{line.text}</Text> : null}
         <SpatialNavigationView direction="vertical" style={styles.flex}>
           {/* Always mounted, so the list keeps its place before the button for the remote. */}
           <SpatialNavigationView direction="vertical" style={styles.listFill}>
             <View style={styles.flex} onLayout={(e) => setSideWidth(e.nativeEvent.layout.width)}>
               {guide.categories && sideWidth > 0 ? (
                 <SpatialNavigationVirtualizedList
+                  ref={categoryList}
                   data={guide.categories}
                   itemSize={CATEGORY_ITEM}
                   orientation="vertical"
@@ -130,12 +130,15 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
                     <DefaultFocus enable={item.id === guide.selected}>
                       <Focusable
                         accessibilityLabel={item.name}
-                        onFocus={() => focusCategory(item.id)}
-                        onBlur={() => selectOnFocus.onBlur(item.id)}
+                        onFocus={() => {
+                          area.current = 'categories';
+                          categoryEntry.focus(item.id === guide.selected);
+                        }}
+                        onBlur={categoryEntry.blur}
                         onSelect={() => guide.selectCategory(item.id)}
                         style={{ width: sideWidth }}
                       >
-                        {({ isFocused }) => <CategoryRow item={item} selected={item.id === guide.selected} focused={isFocused} />}
+                        {({ isFocused }) => <CategoryRow name={item.name} count={item.count} icon={categoryIcon(item.id)} selected={item.id === guide.selected} focused={isFocused} />}
                       </Focusable>
                     </DefaultFocus>
                   )}
@@ -145,9 +148,9 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
           </SpatialNavigationView>
           <View style={styles.sideButton}>
             {line.busy ? (
-              <Button icon="stop" label={t('sync.stop')} onPress={cancelGuideSync} />
+              <Button compact icon="stop" label={t('sync.stop')} onPress={cancelGuideSync} onFocus={() => categoryEntry.focus()} onBlur={categoryEntry.blur} />
             ) : (
-              <Button icon="refresh" label={t('guide.update')} onPress={() => void syncGuide(playlist)} />
+              <Button compact icon="refresh" label={t('guide.update')} onPress={() => void syncGuide(playlist)} onFocus={() => categoryEntry.focus()} onBlur={categoryEntry.blur} />
             )}
           </View>
         </SpatialNavigationView>
@@ -156,8 +159,8 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
       {/* Days and the grid */}
       <SpatialNavigationView direction="vertical" style={styles.main}>
         <View style={styles.mainHead}>
-          <Text weight="semibold" size={20} numberOfLines={1} style={styles.flex}>{guide.category?.name ?? ''}</Text>
-          {guide.channels ? <Text size={13} color={colors.textFaint}>{t('live.channelCount', { n: guide.channels.length })}</Text> : null}
+          <Text weight="semibold" size={tv.heading} numberOfLines={1} style={styles.flex}>{guide.category?.name ?? ''}</Text>
+          {guide.channels ? <Text size={11} color={colors.textFaint}>{guide.channels.length}</Text> : null}
         </View>
         <View style={styles.daysBox}>
           <SpatialNavigationScrollView horizontal offsetFromStart={60} style={styles.daysScroll}>
@@ -227,12 +230,16 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
   );
 }
 
+function categoryIcon(id: string): IconName | null {
+  return id === FAVORITES ? 'star' : id === RECENT ? 'catchup' : null;
+}
+
 function DayChip({ label, selected, onFocus, onSelect }: { label: string; selected: boolean; onFocus: () => void; onSelect: () => void }) {
   return (
     <Focusable accessibilityLabel={label} onFocus={onFocus} onSelect={onSelect}>
       {({ isFocused }) => (
         <View style={[styles.chip, selected && styles.chipOn, isFocused && styles.focused]}>
-          <Text size={14} weight={selected ? 'semibold' : 'medium'} color={selected ? '#ffffff' : colors.textSoft}>{label}</Text>
+          <Text size={12} weight={selected ? 'semibold' : 'medium'} color={selected ? '#ffffff' : colors.textSoft}>{label}</Text>
         </View>
       )}
     </Focusable>
@@ -247,7 +254,7 @@ function Ruler({ viewStart, visibleMs, pxPerMin }: { viewStart: number; visibleM
   return (
     <View style={styles.ruler}>
       {marks.map((m) => (
-        <Text key={m} size={12} weight="medium" color={colors.textMuted} style={[styles.mark, { left: CHANNEL_W + GAP + ((m - viewStart) / 60_000) * pxPerMin }]}>
+        <Text key={m} size={11} weight="medium" color={colors.textMuted} style={[styles.mark, { left: CHANNEL_W + GAP + ((m - viewStart) / 60_000) * pxPerMin }]}>
           {time(m)}
         </Text>
       ))}
@@ -316,10 +323,10 @@ const GuideRow = memo(function GuideRow({ playlist, channel, day, dayEnd, viewSt
       >
         {({ isFocused }) => (
           <View style={[styles.channel, isFocused && styles.focused]}>
-            <ChannelLogo channel={channel} width={48} height={34} />
+            <ChannelLogo channel={channel} width={36} height={26} />
             <View style={styles.flex}>
-              {channel.num !== null ? <Text size={11} color={colors.textFaint}>{channel.num}</Text> : null}
-              <Text size={14} weight="semibold" numberOfLines={1}>{channel.name}</Text>
+              {channel.num !== null ? <Text size={10} color={colors.textFaint}>{channel.num}</Text> : null}
+              <Text size={12} weight="semibold" numberOfLines={1}>{channel.name}</Text>
             </View>
           </View>
         )}
@@ -381,13 +388,13 @@ function ProgrammeCell({ focusRef, cell, viewStart, pxPerMin, now, replay, empty
       {({ isFocused }) => (
         <View style={[styles.cell, cell.programme ? (live ? styles.cellLive : styles.cellProgramme) : styles.cellEmpty, isFocused && styles.cellFocused]}>
           <View style={{ paddingLeft: inset }}>
-            <Text size={14} weight={cell.programme ? 'semibold' : 'regular'} numberOfLines={1} color={isFocused ? colors.onLight : past ? colors.textMuted : colors.text}>
+            <Text size={12} weight={cell.programme ? 'semibold' : 'regular'} numberOfLines={1} color={isFocused ? colors.onLight : past ? colors.textMuted : colors.text}>
               {label}
             </Text>
             {cell.programme ? (
               <View style={styles.cellTime}>
-                {replay ? <Icon name="archive" size={12} color={isFocused ? colors.onLight : colors.accentLight} /> : null}
-                <Text size={12} numberOfLines={1} color={isFocused ? colors.onLight : colors.textFaint}>
+                {replay ? <Icon name="archive" size={11} color={isFocused ? colors.onLight : colors.accentLight} /> : null}
+                <Text size={10} numberOfLines={1} color={isFocused ? colors.onLight : colors.textFaint}>
                   {time(cell.programme.start)}–{time(cell.programme.end)}
                 </Text>
               </View>
@@ -402,22 +409,22 @@ function ProgrammeCell({ focusRef, cell, viewStart, pxPerMin, now, replay, empty
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   cellTime: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  root: { flex: 1, flexDirection: 'row', gap: 28, paddingHorizontal: 32, paddingTop: 32, paddingBottom: 16, backgroundColor: colors.bg },
-  side: { width: 270, gap: 12 },
+  root: { flex: 1, flexDirection: 'row', gap: tv.gap, paddingHorizontal: tv.padX, paddingTop: tv.padTop, paddingBottom: tv.padBottom, backgroundColor: colors.bg },
+  side: { width: tv.side, gap: 10 },
   title: { letterSpacing: -1 },
-  status: { lineHeight: 18 },
+  status: { lineHeight: 15 },
   listFill: { flex: 1, minHeight: 0, overflow: 'hidden' },
-  sideButton: { paddingTop: 12, flexDirection: 'row' },
-  main: { flex: 1, minWidth: 0, gap: 12, paddingTop: 8 },
-  mainHead: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  daysBox: { height: 50 },
+  sideButton: { paddingTop: 8, flexDirection: 'row' },
+  main: { flex: 1, minWidth: 0, gap: 8, paddingTop: 2 },
+  mainHead: { height: 26, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  daysBox: { height: 38 },
   daysScroll: { flexGrow: 0, flexShrink: 0 },
   days: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
-  chip: { height: 46, paddingHorizontal: 16, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: colors.glassStrong, borderWidth: 2, borderColor: 'transparent' },
+  chip: { height: 34, paddingHorizontal: 12, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: colors.glassStrong, borderWidth: 2, borderColor: 'transparent' },
   chipOn: { backgroundColor: colors.accent },
   focused: { borderColor: colors.focusRing },
   grid: { flex: 1, minHeight: 0 },
-  ruler: { height: 24 },
+  ruler: { height: 20 },
   mark: { position: 'absolute', top: 2 },
   rows: { flex: 1, minHeight: 0, overflow: 'hidden' },
   row: { height: ROW, flexDirection: 'row', gap: GAP },
@@ -426,15 +433,15 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 10,
+    gap: 6,
+    paddingHorizontal: 6,
     borderRadius: radius.md,
     borderWidth: 2,
     borderColor: 'transparent',
     backgroundColor: colors.glass,
   },
   track: { height: ROW, overflow: 'hidden' },
-  cell: { flex: 1, justifyContent: 'center', paddingHorizontal: 12, borderRadius: radius.sm, borderWidth: 2, borderColor: 'transparent', overflow: 'hidden' },
+  cell: { flex: 1, justifyContent: 'center', paddingHorizontal: 8, borderRadius: radius.sm, borderWidth: 2, borderColor: 'transparent', overflow: 'hidden' },
   cellProgramme: { backgroundColor: colors.glassStrong },
   cellLive: { backgroundColor: colors.accentSoft },
   cellEmpty: { backgroundColor: colors.glass },

@@ -13,7 +13,8 @@ import { ChannelLogo } from './ChannelRow';
 import { useStreamUrl } from './useLive';
 
 /**
- * Right-hand pane: the focused channel plays small, with what is on now and next.
+ * Right-hand pane: the channel picked with OK plays small (otherwise the focused one is shown, not
+ * played), with what is on now and next.
  * `playing` is false while the full-screen player is open (one stream at a time).
  */
 export function PreviewPane({ playlist, channel, playing }: { playlist: Playlist; channel: Channel | null; playing: boolean }) {
@@ -40,12 +41,12 @@ export function PreviewPane({ playlist, channel, playing }: { playlist: Playlist
             {status === 'failed' ? (
               <>
                 <Icon name="alert" size={24} color="#ff8787" />
-                <Text size={13} color={colors.textMuted} style={styles.centerText}>{t('player.error')}</Text>
+                <Text size={12} color={colors.textMuted} style={styles.centerText}>{t('player.error')}</Text>
               </>
             ) : url ? (
               <ActivityIndicator color={colors.accentLight} />
             ) : (
-              <Icon name="play" size={28} color={colors.textFaint} />
+              <Icon name="play" size={24} color={colors.textFaint} />
             )}
           </View>
         ) : null}
@@ -54,37 +55,37 @@ export function PreviewPane({ playlist, channel, playing }: { playlist: Playlist
       {channel ? (
         <View style={styles.info}>
           <View style={styles.titleRow}>
-            <ChannelLogo channel={channel} width={64} height={44} />
+            <ChannelLogo channel={channel} width={48} height={32} />
             <View style={styles.flex}>
-              <Text weight="bold" size={20} numberOfLines={1}>{channel.name}</Text>
-              <Text size={13} color={colors.textFaint}>
+              <Text weight="bold" size={15} numberOfLines={1}>{channel.name}</Text>
+              <Text size={11} color={colors.textFaint} numberOfLines={1}>
                 {[channel.num, channel.archive ? t('live.catchupDays', { n: channel.archiveDays }) : null].filter((x) => x !== null).join(' · ')}
               </Text>
             </View>
           </View>
           {info?.now ? (
             <View style={styles.block}>
-              <Text weight="semibold" size={12} color={colors.accentLight}>
+              <Text weight="semibold" size={10} color={colors.accentLight}>
                 {t('live.now').toUpperCase()} · {formatTime(info.now.start)}–{formatTime(info.now.end)}
               </Text>
-              <Text weight="semibold" size={17} numberOfLines={2}>{info.now.title}</Text>
+              <Text weight="semibold" size={13} numberOfLines={1}>{info.now.title}</Text>
               <View style={styles.track}><View style={[styles.fill, { width: `${Math.round(info.progress * 100)}%` }]} /></View>
               {info.now.description ? (
-                <Text size={14} color={colors.textSoft} numberOfLines={5} style={styles.desc}>{info.now.description}</Text>
+                <Text size={12} color={colors.textSoft} numberOfLines={3} style={styles.desc}>{info.now.description}</Text>
               ) : null}
             </View>
           ) : (
-            <Text size={14} color={colors.textMuted}>{t('live.noGuide')}</Text>
+            <Text size={12} color={colors.textMuted}>{t('live.noGuide')}</Text>
           )}
           {info?.next ? (
             <View style={styles.block}>
-              <Text weight="semibold" size={12} color={colors.textMuted}>
+              <Text weight="semibold" size={10} color={colors.textMuted}>
                 {t('live.next').toUpperCase()} · {formatTime(info.next.start)}
               </Text>
-              <Text size={15} color={colors.textSoft} numberOfLines={1}>{info.next.title}</Text>
+              <Text size={12} color={colors.textSoft} numberOfLines={1}>{info.next.title}</Text>
             </View>
           ) : null}
-          <Text size={12} color={colors.textFaint}>{t('live.previewHint')}</Text>
+          <Text size={11} color={colors.textFaint}>{t(playing ? 'live.previewHint' : 'live.previewStart')}</Text>
         </View>
       ) : null}
     </View>
@@ -92,15 +93,15 @@ export function PreviewPane({ playlist, channel, playing }: { playlist: Playlist
 }
 
 const styles = StyleSheet.create({
-  pane: { width: 440, gap: 16 },
+  pane: { width: 280, gap: 10, paddingTop: 2 },
   flex: { flex: 1 },
   video: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: colors.border },
   videoCover: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16 },
   centerText: { textAlign: 'center' },
-  info: { gap: 14 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  block: { gap: 6 },
+  info: { gap: 8 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  block: { gap: 4 },
   track: { height: 4, borderRadius: 2, backgroundColor: colors.glassStrong, overflow: 'hidden' },
   fill: { height: 4, backgroundColor: colors.accent },
-  desc: { lineHeight: 20 },
+  desc: { lineHeight: 16 },
 });

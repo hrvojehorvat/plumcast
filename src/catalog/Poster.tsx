@@ -5,7 +5,7 @@ import { Text } from '../ui/Text';
 import { colors, radius } from '../ui/tokens';
 
 /** Text under the poster: two lines of title, one of year / rating. */
-export const POSTER_TEXT = 58;
+export const POSTER_TEXT = 46;
 
 export interface PosterProps {
   title: string;
@@ -59,8 +59,8 @@ export const Poster = memo(function Poster({ title, subtitle, highlight, image, 
       </View>
       {titleless ? null : (
         <View style={styles.text}>
-          <Text weight={focused ? 'semibold' : 'medium'} size={13} numberOfLines={2} color={focused ? colors.text : colors.textSoft}>{title}</Text>
-          <Text size={12} color={highlight ? colors.accentLight : colors.textFaint} numberOfLines={1}>{highlight ?? subtitle ?? ''}</Text>
+          <Text weight={focused ? 'semibold' : 'medium'} size={12} numberOfLines={2} color={focused ? colors.text : colors.textSoft}>{title}</Text>
+          <Text size={11} color={highlight ? colors.accentLight : colors.textFaint} numberOfLines={1}>{highlight ?? subtitle ?? ''}</Text>
         </View>
       )}
     </View>
@@ -81,5 +81,5 @@ const styles = StyleSheet.create({
   mark: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(12,10,18,0.8)' },
   track: { position: 'absolute', left: 6, right: 6, bottom: 6, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' },
   fill: { height: 4, backgroundColor: colors.accent },
-  text: { height: POSTER_TEXT, paddingTop: 6, paddingHorizontal: 2, gap: 2 },
+  text: { height: POSTER_TEXT, paddingTop: 4, paddingHorizontal: 2, gap: 1 },
 });

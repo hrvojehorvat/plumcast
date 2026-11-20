@@ -15,18 +15,22 @@ type Props = {
   busy?: boolean;
   /** Lets the screen move remote focus here. */
   focusRef?: Ref<SpatialNavigationNodeRef>;
+  /** Smaller, for the narrow TV side columns. */
+  compact?: boolean;
+  onFocus?: () => void;
+  onBlur?: () => void;
 };
 
 /** Focusable pill button (remote, mouse and touch). */
-export function Button({ label, onPress, variant = 'secondary', icon, disabled, busy, focusRef }: Props) {
+export function Button({ label, onPress, variant = 'secondary', icon, disabled, busy, focusRef, compact, onFocus, onBlur }: Props) {
   const inactive = disabled || busy;
   const fg = variant === 'primary' ? '#ffffff' : variant === 'danger' ? '#ff8787' : colors.text;
   return (
-    <Focusable accessibilityLabel={label} onSelect={inactive ? undefined : onPress} focusRef={focusRef}>
+    <Focusable accessibilityLabel={label} onSelect={inactive ? undefined : onPress} focusRef={focusRef} onFocus={onFocus} onBlur={onBlur}>
       {({ isFocused }) => (
-        <View style={[styles.base, styles[variant], isFocused && styles.focused, inactive && styles.inactive]}>
-          {busy ? <ActivityIndicator size="small" color={fg} /> : icon ? <Icon name={icon} size={18} color={fg} /> : null}
-          <Text weight="semibold" size={15} color={fg}>
+        <View style={[styles.base, compact && styles.compact, styles[variant], isFocused && styles.focused, inactive && styles.inactive]}>
+          {busy ? <ActivityIndicator size="small" color={fg} /> : icon ? <Icon name={icon} size={compact ? 15 : 18} color={fg} /> : null}
+          <Text weight="semibold" size={compact ? 13 : 15} color={fg}>
             {label}
           </Text>
         </View>
@@ -36,6 +40,7 @@ export function Button({ label, onPress, variant = 'secondary', icon, disabled, 
 }
 
 const styles = StyleSheet.create({
+  compact: { height: 36, paddingHorizontal: 14, gap: 6 },
   base: {
     height: 46,
     paddingHorizontal: 20,

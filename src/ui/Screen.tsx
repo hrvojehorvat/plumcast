@@ -3,7 +3,7 @@ import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SpatialNavigationScrollView, SpatialNavigationView } from 'react-tv-space-navigation';
 import { Text } from './Text';
-import { colors } from './tokens';
+import { colors, tv } from './tokens';
 import { useWideLayout } from './useWideLayout';
 
 /**
@@ -20,7 +20,7 @@ export function Screen({ title, children }: { title: string; children?: ReactNod
       style={styles.root}
       contentContainerStyle={wide ? styles.wide : { ...styles.narrow, paddingTop: insets.top + 16 }}
     >
-      <Text weight="bold" size={wide ? 34 : 30} style={styles.title} accessibilityRole="header">
+      <Text weight="bold" size={wide ? tv.title + 4 : 30} style={styles.title} accessibilityRole="header">
         {title}
       </Text>
       <SpatialNavigationView direction="vertical" style={styles.body}>
@@ -46,7 +46,7 @@ export function Card({ children, style }: { children: ReactNode; style?: ViewSty
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  wide: { paddingHorizontal: 48, paddingVertical: 40 },
+  wide: { paddingHorizontal: tv.padX + 8, paddingTop: tv.padTop, paddingBottom: 32 },
   narrow: { paddingHorizontal: 20, paddingBottom: 24 },
   title: { letterSpacing: -1 },
   body: { marginTop: 16, gap: 16 },

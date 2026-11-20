@@ -19,7 +19,7 @@ import { colors, radius } from '../ui/tokens';
 import { useTimeFormat } from '../ui/useTimeFormat';
 import { dayLabel, useArchiveDays } from './useCatchup';
 
-const ITEM = 72;
+const ITEM = 52;
 
 /** Replays of one channel: day chips, then that day's programmes, newest first. */
 export function ArchivePane({
@@ -28,7 +28,6 @@ export function ArchivePane({
   list,
   wide,
   autoFocus = false,
-  loadDelayMs = 0,
   onFocusIn,
 }: {
   playlist: Playlist;
@@ -37,23 +36,12 @@ export function ArchivePane({
   wide: boolean;
   /** Move the remote focus to the newest programme once it is loaded (a page of its own). */
   autoFocus?: boolean;
-  /**
-   * Wait this long before asking the provider, so moving quickly through a channel list doesn't
-   * fire a request per channel. Moving into the pane starts it at once.
-   */
-  loadDelayMs?: number;
   /** The remote moved somewhere into the pane. */
   onFocusIn?: () => void;
 }) {
   const { t, lang } = useI18n();
   const now = useNow(60_000);
-  const [armed, setArmed] = useState(loadDelayMs === 0);
-  useEffect(() => {
-    if (armed) return;
-    const id = setTimeout(() => setArmed(true), loadDelayMs);
-    return () => clearTimeout(id);
-  }, [armed, loadDelayMs]);
-  const programmes = useArchive(playlist, armed ? channel : null);
+  const programmes = useArchive(playlist, channel);
   const days = useArchiveDays(programmes);
   const [chosen, setChosen] = useState<number | null>(null);
   const day = chosen !== null && days.includes(chosen) ? chosen : (days[0] ?? null);
@@ -106,10 +94,7 @@ export function ArchivePane({
       channelKey={channel.id}
       onPlay={play}
       autoFocus={autoFocus}
-      onEnter={() => {
-        setArmed(true);
-        onFocusIn?.();
-      }}
+      onEnter={() => onFocusIn?.()}
     />
   );
 }
@@ -175,7 +160,6 @@ function WideArchive({
       return;
     }
     enter();
-    onDay(d);
   };
   return (
     <SpatialNavigationNode orientation="vertical" onInactive={() => (inside.current = false)}>
@@ -191,7 +175,7 @@ function WideArchive({
                 <Focusable key={d} focusRef={d === day ? dayChip : undefined} accessibilityLabel={label(d)} onSelect={() => onDay(d)} onFocus={() => onChipFocus(d)}>
                   {({ isFocused }) => (
                     <View style={[styles.chip, d === day && styles.chipOn, isFocused && styles.focused]}>
-                      <Text size={14} weight={d === day ? 'semibold' : 'medium'} color={d === day ? '#ffffff' : colors.textSoft}>{label(d)}</Text>
+                      <Text size={12} weight={d === day ? 'semibold' : 'medium'} color={d === day ? '#ffffff' : colors.textSoft}>{label(d)}</Text>
                     </View>
                   )}
                 </Focusable>
@@ -249,16 +233,16 @@ function ProgrammeRow({ programme, focused }: { programme: Programme; focused: b
   return (
     <View style={[styles.row, focused && styles.rowFocused]}>
       <View style={styles.time}>
-        <Text size={15} weight="semibold" color={focused ? colors.accentLight : colors.text}>{time(programme.start)}</Text>
-        <Text size={12} color={colors.textFaint}>{t('guide.minutes', { n: minutes })}</Text>
+        <Text size={13} weight="semibold" color={focused ? colors.accentLight : colors.text}>{time(programme.start)}</Text>
+        <Text size={10} color={colors.textFaint}>{t('guide.minutes', { n: minutes })}</Text>
       </View>
       <View style={styles.flex}>
-        <Text size={15} weight="medium" numberOfLines={1}>{programme.title}</Text>
+        <Text size={13} weight="medium" numberOfLines={1}>{programme.title}</Text>
         {programme.description ? (
-          <Text size={12} color={colors.textMuted} numberOfLines={1}>{programme.description}</Text>
+          <Text size={11} color={colors.textMuted} numberOfLines={1}>{programme.description}</Text>
         ) : null}
       </View>
-      <Icon name={focused ? 'play' : 'archive'} size={18} color={focused ? colors.accentLight : colors.textFaint} />
+      <Icon name={focused ? 'play' : 'archive'} size={16} color={focused ? colors.accentLight : colors.textFaint} />
     </View>
   );
 }
@@ -320,24 +304,24 @@ function AiredRow({ item, focused }: { item: AiredItem; focused: boolean }) {
     <View style={[styles.row, focused && styles.rowFocused]}>
       <ChannelLogo channel={item.channel} />
       <View style={styles.flex}>
-        <Text size={15} weight="medium" numberOfLines={1}>{item.programme.title}</Text>
-        <Text size={12} color={colors.textMuted} numberOfLines={1}>
+        <Text size={13} weight="medium" numberOfLines={1}>{item.programme.title}</Text>
+        <Text size={11} color={colors.textMuted} numberOfLines={1}>
           {item.channel.name} · {when}{time(item.programme.start)}–{time(item.programme.end)}
         </Text>
       </View>
-      <Icon name={focused ? 'play' : 'archive'} size={18} color={focused ? colors.accentLight : colors.textFaint} />
+      <Icon name={focused ? 'play' : 'archive'} size={16} color={focused ? colors.accentLight : colors.textFaint} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
-  wide: { flex: 1, gap: 12 },
-  chipsRow: { flexGrow: 0, flexShrink: 0, height: 46 },
+  wide: { flex: 1, gap: 8 },
+  chipsRow: { flexGrow: 0, flexShrink: 0, height: 38 },
   chips: { flexDirection: 'row', gap: 8, paddingVertical: 4, paddingHorizontal: 2 },
   chip: {
-    height: 36,
-    paddingHorizontal: 14,
+    height: 30,
+    paddingHorizontal: 12,
     justifyContent: 'center',
     borderRadius: radius.pill,
     backgroundColor: colors.glassStrong,
@@ -354,15 +338,15 @@ const styles = StyleSheet.create({
     height: ITEM - 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    paddingHorizontal: 14,
+    gap: 10,
+    paddingHorizontal: 10,
     borderRadius: radius.md,
     backgroundColor: colors.glass,
     borderWidth: 2,
     borderColor: 'transparent',
   },
   rowFocused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
-  time: { width: 64 },
+  time: { width: 48 },
   chipsScroll: { flexGrow: 0, flexShrink: 0, marginTop: 4 },
   phoneChips: { gap: 8, paddingHorizontal: 20 },
   phoneEmpty: { paddingHorizontal: 20, paddingTop: 16, lineHeight: 20 },

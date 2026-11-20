@@ -11,6 +11,7 @@ export function SearchField({
   onChangeText,
   placeholder,
   onFocus,
+  onBlur,
   onSubmit,
 }: {
   value: string;
@@ -18,6 +19,7 @@ export function SearchField({
   placeholder: string;
   /** Remote focus arrived on the box. */
   onFocus?: () => void;
+  onBlur?: () => void;
   /** The keyboard's search / done key. */
   onSubmit?: () => void;
 }) {
@@ -26,10 +28,10 @@ export function SearchField({
   const { lock, unlock } = useLockSpatialNavigation();
 
   return (
-    <Focusable accessibilityLabel={placeholder} onFocus={onFocus} onSelect={() => ref.current?.focus()}>
+    <Focusable accessibilityLabel={placeholder} onFocus={onFocus} onBlur={onBlur} onSelect={() => ref.current?.focus()}>
       {({ isFocused }) => (
         <View style={[styles.box, (isFocused || editing) && styles.focused]}>
-          <Icon name="search" size={18} color={colors.textFaint} />
+          <Icon name="search" size={16} color={colors.textFaint} />
           <TextInput
             ref={ref}
             value={value}
@@ -67,8 +69,8 @@ export function SearchField({
 
 const styles = StyleSheet.create({
   box: {
-    height: 44,
-    paddingHorizontal: 12,
+    height: 38,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -78,5 +80,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.glass,
   },
   focused: { borderColor: colors.focusRing },
-  input: { flex: 1, height: 40, color: colors.text, fontFamily: font.regular, fontSize: 15, outlineStyle: 'none' } as object,
+  input: { flex: 1, minWidth: 0, height: 34, color: colors.text, fontFamily: font.regular, fontSize: 13, outlineStyle: 'none' } as object,
 });

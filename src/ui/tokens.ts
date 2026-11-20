@@ -51,3 +51,22 @@ export const font = {
 } as const;
 
 export type FontWeight = keyof typeof font;
+
+/**
+ * Sizes of the TV / wide layout. A 1080p TV is only 960 × 540 layout points, so everything is
+ * sized to fit that: menu rail + categories + list + side pane side by side.
+ */
+export const tv = {
+  /** Page padding next to the menu rail. */
+  padX: 20,
+  padTop: 18,
+  padBottom: 12,
+  /** Gap between columns. */
+  gap: 14,
+  /** Left column (categories). */
+  side: 190,
+  /** Page title (Live TV, Movies, …). */
+  title: 22,
+  /** Column heading (category name). */
+  heading: 15,
+} as const;
