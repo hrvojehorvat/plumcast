@@ -9,6 +9,7 @@ import { backAction } from '../core/nav';
 import { playlists } from '../data/store';
 import { LivePlayerHost } from '../player/LivePlayer';
 import { I18nProvider } from '../ui/i18n';
+import { stepBack } from '../ui/lastKey';
 import { configureRemote } from '../ui/remote';
 import { Sidebar } from '../ui/Sidebar';
 import { TabBar } from '../ui/TabBar';
@@ -51,7 +52,8 @@ function Shell() {
 }
 
 /**
- * Android Back on the main sections: section → Home, Home → leave the app. Registered after the
+ * Android Back on the main sections (TV): one column left, like ◀ but a whole column at once (from a grid
+ * straight to its categories); in the menu: section → Home, Home → leave the app. Registered after the
  * navigator's own handler so it wins over "go back through every page the menu opened";
  * dialogs, the player and detail pages register later still, so they keep handling Back first.
  */
@@ -61,6 +63,7 @@ function useSectionBack(wide: boolean) {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       const action = backAction(latest.current.pathname, latest.current.wide);
       if (action === 'pass') return false;
+      if (latest.current.wide && stepBack()) return true;
       if (action === 'exit') BackHandler.exitApp();
       else router.replace(action.go);
       return true;

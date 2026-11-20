@@ -25,7 +25,8 @@ import { Icon, type IconName } from '../ui/Icon';
 import { useI18n } from '../ui/i18n';
 import { Text } from '../ui/Text';
 import { colors, radius, tv } from '../ui/tokens';
-import { whenEnteredSideways } from '../ui/lastKey';
+import { setBackStep, whenEnteredSideways } from '../ui/lastKey';
+import { useLatest } from '../ui/useQuery';
 import { useOpenRight } from '../ui/useOpenRight';
 import { useTimeFormat } from '../ui/useTimeFormat';
 import { ProgrammeDialog } from './ProgrammeDialog';
@@ -110,10 +111,14 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
       return;
     }
     area.current = 'days';
+    setBackStep(() => backToCategories.current());
   };
+  // Back from the days or the grid goes straight to the categories (◀ only moves one programme).
+  const backToCategories = useLatest(toSelectedCategory);
   const enterGrid = useCallback(() => {
     area.current = 'grid';
-  }, []);
+    setBackStep(() => backToCategories.current());
+  }, [backToCategories]);
 
   return (
     <SpatialNavigationView direction="horizontal" style={styles.root}>

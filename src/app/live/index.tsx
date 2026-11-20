@@ -19,7 +19,7 @@ import { Screen } from '../../ui/Screen';
 import { SearchField } from '../../ui/SearchField';
 import { Text } from '../../ui/Text';
 import { colors, radius, tv } from '../../ui/tokens';
-import { whenEnteredSideways } from '../../ui/lastKey';
+import { setBackStep, whenEnteredSideways } from '../../ui/lastKey';
 import { useOpenRight } from '../../ui/useOpenRight';
 import { useWideLayout } from '../../ui/useWideLayout';
 
@@ -164,7 +164,10 @@ function WideLive({ playlist }: { playlist: Playlist }) {
           value={live.query}
           onChangeText={live.setQuery}
           placeholder={t('live.search', { category: live.category?.name ?? '' })}
-          onFocus={() => whenEnteredSideways(toLastChannel)}
+          onFocus={() => {
+            setBackStep(toSelectedCategory);
+            whenEnteredSideways(toLastChannel);
+          }}
         />
         <View style={styles.listFill} onLayout={(e) => setChannelWidth(e.nativeEvent.layout.width)}>
           {live.channels === null || channelWidth === 0 ? (
@@ -183,6 +186,7 @@ function WideLive({ playlist }: { playlist: Playlist }) {
               renderItem={({ item }: { item: Channel }) => (
                 <Focusable accessibilityLabel={item.name} onSelect={() => choose(item)} onFocus={() => {
                     lastChannel.current = item.id;
+                    setBackStep(toSelectedCategory);
                     setFocused(item);
                   }}
                   style={{ width: channelWidth }}

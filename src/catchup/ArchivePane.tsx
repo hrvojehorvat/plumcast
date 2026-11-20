@@ -250,7 +250,7 @@ function ProgrammeRow({ programme, focused }: { programme: Programme; focused: b
 // ---------------------------------------------------------------- recently aired
 
 /** Programmes that just ended on catch-up channels, newest first, across channels. */
-export function AiredList({ playlist, items, wide }: { playlist: Playlist; items: AiredItem[] | undefined; wide: boolean }) {
+export function AiredList({ playlist, items, wide, onFocusIn }: { playlist: Playlist; items: AiredItem[] | undefined; wide: boolean; onFocusIn?: () => void }) {
   const { t } = useI18n();
   const [width, setWidth] = useState(0);
   const play = (item: AiredItem) => livePlayer.openReplay(playlist.id, [item.channel], item.channel, item.programme);
@@ -283,7 +283,7 @@ export function AiredList({ playlist, items, wide }: { playlist: Playlist; items
           scrollBehavior="stick-to-start"
           additionalItemsRendered={4}
           renderItem={({ item }: { item: AiredItem }) => (
-            <Focusable accessibilityLabel={item.programme.title} onSelect={() => play(item)} style={{ width }}>
+            <Focusable accessibilityLabel={item.programme.title} onFocus={onFocusIn} onSelect={() => play(item)} style={{ width }}>
               {({ isFocused }) => <AiredRow item={item} focused={isFocused} />}
             </Focusable>
           )}

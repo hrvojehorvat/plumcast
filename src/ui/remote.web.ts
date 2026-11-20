@@ -1,5 +1,5 @@
 import { Directions, SpatialNavigation } from 'react-tv-space-navigation';
-import { noteKey, setKeyHandler } from './lastKey';
+import { noteKey, setKeyHandler, stepBack } from './lastKey';
 
 /** Browser (dev testing and web TVs): arrow keys + Enter act as the remote. */
 const KEY_MAP: Record<string, Directions> = {
@@ -18,6 +18,11 @@ export function configureRemote() {
         // Let text fields keep their own arrow keys and Enter.
         const target = event.target as HTMLElement | null;
         if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+        // Escape stands in for the remote's Back (dev testing): one column left.
+        if (event.key === 'Escape') {
+          if (stepBack()) event.preventDefault();
+          return;
+        }
         const direction = KEY_MAP[event.key];
         if (!direction) return;
         event.preventDefault();

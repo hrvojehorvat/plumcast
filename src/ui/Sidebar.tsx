@@ -1,24 +1,43 @@
 import { router, usePathname } from 'expo-router';
-import { Fragment, useRef } from 'react';
+import { Fragment, useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { DefaultFocus, SpatialNavigationView, type SpatialNavigationNodeRef } from 'react-tv-space-navigation';
 import { NAV_ITEMS, navKeyForPath } from '../core/nav';
 import { Focusable } from './Focusable';
 import { useI18n } from './i18n';
 import { Icon } from './Icon';
+import { keyMark, moveRightUnlessMoved, setBackStep, setMenuFocus } from './lastKey';
 import { LogoMark } from './Logo';
 import { colors, radius } from './tokens';
 import { useLatest } from './useQuery';
 
 /**
- * TV / desktop navigation rail. Moving the remote focus only moves the focus; OK opens the section.
- * Coming into the rail from the page (◀) always lands on the current section, never on the item the rail
- * remembers from before.
+ * TV / desktop navigation rail. Moving the remote focus only moves the focus; OK opens the section and
+ * moves into it. Coming into the rail from the page (◀ or Back) always lands on the current section, never
+ * on the item the rail remembers from before.
  */
 export function Sidebar() {
   const { t } = useI18n();
   const active = navKeyForPath(usePathname());
   const entry = useRailEntry(active);
+  useEffect(() => {
+    setMenuFocus(entry.focusCurrent);
+    return () => setMenuFocus(null);
+  }, [entry.focusCurrent]);
+
+  // OK: open the section, then step into it (▶) as soon as its page shows and has something to focus.
+  const shown = useLatest(active);
+  const open = (key: string, href: string, isActive: boolean) => {
+    if (!isActive) router.replace(href);
+    const mark = keyMark();
+    let tries = 0;
+    const step = () => {
+      if (!entry.isInside() || keyMark() !== mark || tries++ > 40) return;
+      if (shown.current === key) moveRightUnlessMoved(mark);
+      setTimeout(step, 100);
+    };
+    setTimeout(step, 0);
+  };
 
   return (
     <View style={styles.rail}>
@@ -35,11 +54,13 @@ export function Sidebar() {
                 <Focusable
                   accessibilityLabel={t(`nav.${item.key}`)}
                   focusRef={entry.ref(item.key)}
-                  onFocus={() => entry.focus(item.key)}
-                  onBlur={entry.blur}
-                  onSelect={() => {
-                    if (!isActive) router.replace(item.href);
+                  onFocus={() => {
+                    // Back in the menu works as usual (section → Home → leave the app).
+                    setBackStep(null);
+                    entry.focus(item.key);
                   }}
+                  onBlur={entry.blur}
+                  onSelect={() => open(item.key, item.href, isActive)}
                 >
                   {({ isFocused }) => (
                     <View style={[styles.item, isFocused && styles.focused]}>
@@ -68,7 +89,13 @@ function useRailEntry(active: string | null) {
   const inside = useRef(false);
   const justLeft = useRef(false);
   const latest = useLatest(active);
+  const focusCurrent = useCallback(() => {
+    const current = latest.current;
+    if (current) nodes.current.get(current)?.focus();
+  }, [latest]);
   return {
+    focusCurrent,
+    isInside: () => inside.current,
     ref(key: string) {
       let ref = refs.current.get(key);
       if (!ref) {

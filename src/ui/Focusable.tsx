@@ -1,6 +1,7 @@
 import type { ReactElement, Ref } from 'react';
 import { Platform, Pressable, type ViewStyle } from 'react-native';
 import { SpatialNavigationFocusableView, type SpatialNavigationNodeRef } from 'react-tv-space-navigation';
+import { resetBackStep } from './lastKey';
 
 type Props = {
   onSelect?: () => void;
@@ -32,14 +33,11 @@ export function Focusable({ onSelect, onFocus, onBlur, style, accessibilityLabel
       ref={focusRef}
       indexRange={indexRange}
       onSelect={onSelect}
-      onFocus={
-        traceFocus
-          ? () => {
-              (globalThis as { __plumcastFocus?: string }).__plumcastFocus = accessibilityLabel ?? '?';
-              onFocus?.();
-            }
-          : onFocus
-      }
+      onFocus={() => {
+        if (traceFocus) (globalThis as { __plumcastFocus?: string }).__plumcastFocus = accessibilityLabel ?? '?';
+        resetBackStep();
+        onFocus?.();
+      }}
       onBlur={onBlur} style={style} viewProps={{ accessibilityLabel, accessibilityRole: 'button' }}>
       {(state) =>
         needsPress ? (

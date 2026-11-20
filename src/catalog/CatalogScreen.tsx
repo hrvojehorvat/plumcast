@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -24,7 +24,8 @@ import { SearchField } from '../ui/SearchField';
 import { Segmented } from '../ui/Segmented';
 import { Text } from '../ui/Text';
 import { colors, radius, tv } from '../ui/tokens';
-import { whenEnteredSideways } from '../ui/lastKey';
+import { setBackStep, whenEnteredSideways } from '../ui/lastKey';
+import { useLatest } from '../ui/useQuery';
 import { useOpenRight } from '../ui/useOpenRight';
 import { useWideLayout } from '../ui/useWideLayout';
 import { POSTER_TEXT } from './Poster';
@@ -179,6 +180,10 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
     if (index >= 0) categoryList.current?.focus(index);
   };
 
+  // Back from the grid goes straight to the categories (◀ only moves one card).
+  const backToCategories = useLatest(toSelectedCategory);
+  const onCardFocus = useCallback(() => setBackStep(() => backToCategories.current()), [backToCategories]);
+
   // OK on a category opens it and moves into its grid (the first item) once it is loaded.
   const openRight = useOpenRight(gridWidth > 0 ? screen.items : null);
   const openCategory = (id: string) => {
@@ -258,7 +263,7 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
               scrollBehavior="stick-to-start"
               additionalRenderedRows={2}
               renderItem={({ item }: { item: T }) => (
-                <Focusable accessibilityLabel={item.name} onSelect={() => screen.open(item)} focusRef={item.id === returnId ? returnCard : undefined}>
+                <Focusable accessibilityLabel={item.name} onFocus={onCardFocus} onSelect={() => screen.open(item)} focusRef={item.id === returnId ? returnCard : undefined}>
                   {({ isFocused }) => section.renderPoster(item, poster, isFocused)}
                 </Focusable>
               )}

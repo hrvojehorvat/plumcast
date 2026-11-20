@@ -21,7 +21,7 @@ import { Screen } from '../../ui/Screen';
 import { SearchField } from '../../ui/SearchField';
 import { Text } from '../../ui/Text';
 import { colors, radius, tv } from '../../ui/tokens';
-import { keyMark, moveRightUnlessMoved, whenEnteredSideways } from '../../ui/lastKey';
+import { keyMark, moveRightUnlessMoved, setBackStep, whenEnteredSideways } from '../../ui/lastKey';
 import { useOpenRight } from '../../ui/useOpenRight';
 import { useWideLayout } from '../../ui/useWideLayout';
 
@@ -153,7 +153,7 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
             <Text weight="semibold" size={tv.heading} numberOfLines={1} style={styles.flex}>{t('catchup.recent')}</Text>
             <Text size={11} color={colors.textFaint} numberOfLines={1}>{t('catchup.recentHint')}</Text>
           </View>
-          <AiredList playlist={playlist} items={screen.aired} wide />
+          <AiredList playlist={playlist} items={screen.aired} wide onFocusIn={() => setBackStep(toSelectedCategory)} />
         </SpatialNavigationView>
       ) : (
         <>
@@ -166,7 +166,10 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
               value={screen.query}
               onChangeText={screen.setQuery}
               placeholder={t('live.search', { category: screen.category?.name ?? '' })}
-              onFocus={() => whenEnteredSideways(toLastChannel)}
+              onFocus={() => {
+                setBackStep(toSelectedCategory);
+                whenEnteredSideways(toLastChannel);
+              }}
             />
             <View style={styles.listFill} onLayout={(e) => setChannelWidth(e.nativeEvent.layout.width)}>
               {channels === null || channelWidth === 0 ? (
@@ -187,6 +190,7 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
                       accessibilityLabel={item.name}
                       onFocus={() => {
                         lastChannel.current = item.id;
+                        setBackStep(toSelectedCategory);
                       }}
                       onSelect={() => pick(item)}
                       style={{ width: channelWidth }}
@@ -205,7 +209,7 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
               {paneChannel ? <Text size={11} color={colors.textFaint}>{t('catchup.days', { n: replayDays(paneChannel) })}</Text> : null}
             </View>
             {paneChannel ? (
-              <ArchivePane key={paneChannel.id} playlist={playlist} channel={paneChannel} list={channels} wide />
+              <ArchivePane key={paneChannel.id} playlist={playlist} channel={paneChannel} list={channels} wide onFocusIn={() => setBackStep(toLastChannel)} />
             ) : hasChannels ? (
               <Text size={13} color={colors.textMuted} style={styles.empty}>{t('catchup.pickChannel')}</Text>
             ) : null}
