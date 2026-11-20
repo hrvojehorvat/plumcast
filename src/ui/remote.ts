@@ -1,8 +1,7 @@
-import { TVEventHandler } from 'react-native';
 import { Directions, SpatialNavigation } from 'react-tv-space-navigation';
-import { createTvPressFilter } from '../core/tvKeys';
+import { listenToRemote, remoteKeys } from './remoteKeys';
 
-/** Android TV / Fire TV remote: D-pad and select keys arrive as TV events. */
+/** Android TV / Fire TV remote: D-pad and OK move and select (when no player or dialog is open). */
 const KEY_MAP: Record<string, Directions> = {
   up: Directions.UP,
   down: Directions.DOWN,
@@ -13,15 +12,13 @@ const KEY_MAP: Record<string, Directions> = {
 };
 
 export function configureRemote() {
+  listenToRemote();
   SpatialNavigation.configureRemoteControl({
-    remoteControlSubscriber: (callback) => {
-      const press = createTvPressFilter();
-      return TVEventHandler?.addListener((event) => {
-        const type = press(event);
-        const direction = type ? KEY_MAP[type] : undefined;
+    remoteControlSubscriber: (callback) =>
+      remoteKeys.setBase((type) => {
+        const direction = KEY_MAP[type];
         if (direction) callback(direction);
-      });
-    },
-    remoteControlUnsubscriber: (subscription) => subscription?.remove(),
+      }),
+    remoteControlUnsubscriber: (remove) => remove(),
   });
 }

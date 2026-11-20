@@ -1,26 +1,29 @@
 import { useEffect } from 'react';
+import { BackHandler } from 'react-native';
 import { useLatest } from '../ui/useQuery';
-import { BackHandler, TVEventHandler } from 'react-native';
+import { listenToRemote, remoteKeys } from '../ui/remoteKeys';
 import { keyFromTvEvent, type PlayerKey } from './keys';
-import { createTvPressFilter } from '../core/tvKeys';
 
-/** Remote keys for the full-screen player (Android TV / Fire TV / phone back button). */
+/**
+ * Remote keys for a full-screen layer: the player or a dialog (Android TV / Fire TV / phone back button).
+ * While it is mounted it is the top layer: it gets every key and nothing under it does.
+ */
 export function usePlayerKeys(onKey: (key: PlayerKey) => void) {
   const handler = useLatest(onKey);
 
   useEffect(() => {
-    const press = createTvPressFilter();
-    const tv = TVEventHandler?.addListener((event) => {
-      const type = press(event);
-      const key = type ? keyFromTvEvent(type) : null;
+    listenToRemote();
+    const close = remoteKeys.push((type) => {
+      const key = keyFromTvEvent(type);
       if (key) handler.current(key);
     });
+    // Back handlers run newest first, so the top layer also gets Back first.
     const back = BackHandler.addEventListener('hardwareBackPress', () => {
       handler.current('back');
       return true;
     });
     return () => {
-      tv?.remove();
+      close();
       back.remove();
     };
   }, [handler]);

@@ -1,3 +1,4 @@
+import { CurrentMark } from '../ui/CurrentMark';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -251,9 +252,10 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
 function CategoryRow({ item, selected, focused }: { item: CatalogCategory; selected: boolean; focused: boolean }) {
   const icon = item.id === FAVORITES ? 'star' : item.id === CONTINUE ? 'play' : null;
   return (
-    <View style={[styles.category, selected && styles.categorySelected, focused && styles.categoryFocused]}>
+    <View style={[styles.category, focused && styles.categoryFocused]}>
+      {selected && !focused ? <CurrentMark /> : null}
       {icon ? <Icon name={icon} size={16} color={selected || focused ? colors.accentLight : colors.textFaint} /> : null}
-      <Text weight={selected ? 'semibold' : 'regular'} size={15} numberOfLines={1} color={selected || focused ? colors.text : colors.textSoft} style={styles.flex}>
+      <Text weight={selected ? 'semibold' : 'regular'} size={15} numberOfLines={1} color={focused ? colors.text : selected ? colors.accentLight : colors.textSoft} style={styles.flex}>
         {item.name}
       </Text>
       {item.count !== null ? <Text size={12} color={colors.textFaint}>{item.count}</Text> : null}
@@ -341,7 +343,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   categorySelected: { backgroundColor: colors.accentSoft },
-  categoryFocused: { borderColor: colors.focusRing },
+  categoryFocused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
   main: { flex: 1, gap: 12, paddingTop: 8 },
   mainHead: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 12 },
   gridRow: { gap: GAP },

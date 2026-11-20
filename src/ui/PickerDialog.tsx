@@ -1,3 +1,4 @@
+import { CurrentMark } from './CurrentMark';
 import React, { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 type ScrollViewRef = React.ComponentRef<typeof ScrollView>;
@@ -49,8 +50,9 @@ export function PickerDialog({ title, options, value, onPick, onClose }: { title
             const selected = o.id === value;
             const on = i === index && REMOTE;
             return (
-              <Pressable key={o.id} onPress={() => onPick(o.id)} onHoverIn={() => setIndex(i)} style={[styles.item, selected && styles.selected, on && styles.focused]}>
-                <Text size={15} weight={selected ? 'semibold' : 'regular'} numberOfLines={1} color={selected || on ? colors.text : colors.textSoft} style={styles.flex}>{o.label}</Text>
+              <Pressable key={o.id} onPress={() => onPick(o.id)} onHoverIn={() => setIndex(i)} style={[styles.item, on && styles.focused]}>
+                {selected && !on ? <CurrentMark /> : null}
+                <Text size={15} weight={selected ? 'semibold' : 'regular'} numberOfLines={1} color={on ? colors.text : selected ? colors.accentLight : colors.textSoft} style={styles.flex}>{o.label}</Text>
                 {o.detail ? <Text size={12} color={colors.textFaint}>{o.detail}</Text> : null}
               </Pressable>
             );
@@ -68,6 +70,5 @@ const styles = StyleSheet.create({
   list: { flexGrow: 0 },
   flex: { flex: 1 },
   item: { height: ITEM - 4, marginBottom: 4, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: radius.md, borderWidth: 2, borderColor: 'transparent' },
-  selected: { backgroundColor: colors.accentSoft },
-  focused: { borderColor: colors.focusRing },
+  focused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
 });

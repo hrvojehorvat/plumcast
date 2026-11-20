@@ -1,3 +1,4 @@
+import { CurrentMark } from '../ui/CurrentMark';
 import { StyleSheet, View } from 'react-native';
 import { FAVORITES, RECENT } from '../data/live';
 import { Icon } from '../ui/Icon';
@@ -12,9 +13,10 @@ export const CATEGORY_ITEM = 52;
 export function CategoryRow({ item, selected, focused }: { item: CategoryItem; selected: boolean; focused: boolean }) {
   const icon = item.id === FAVORITES ? 'star' : item.id === RECENT ? 'catchup' : null;
   return (
-    <View style={[styles.category, selected && styles.selected, focused && styles.focused]}>
+    <View style={[styles.category, focused && styles.focused]}>
+      {selected && !focused ? <CurrentMark /> : null}
       {icon ? <Icon name={icon} size={16} color={selected || focused ? colors.accentLight : colors.textFaint} /> : null}
-      <Text weight={selected ? 'semibold' : 'regular'} size={15} numberOfLines={1} color={selected || focused ? colors.text : colors.textSoft} style={styles.flex}>
+      <Text weight={selected ? 'semibold' : 'regular'} size={15} numberOfLines={1} color={focused ? colors.text : selected ? colors.accentLight : colors.textSoft} style={styles.flex}>
         {item.name}
       </Text>
       {item.count !== null ? <Text size={12} color={colors.textFaint}>{item.count}</Text> : null}
@@ -35,5 +37,5 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   selected: { backgroundColor: colors.accentSoft },
-  focused: { borderColor: colors.focusRing },
+  focused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
 });

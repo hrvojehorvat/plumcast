@@ -1,3 +1,4 @@
+import { CurrentMark } from '../ui/CurrentMark';
 import { memo } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import type { Channel } from '../data/live';
@@ -38,7 +39,8 @@ export const ChannelRow = memo(function ChannelRow({
 }) {
   const info = useNowNext(playlist, channel.id);
   return (
-    <View style={[styles.row, active && styles.active, focused && styles.focused]}>
+    <View style={[styles.row, focused && styles.focused]}>
+      {active && !focused ? <CurrentMark /> : null}
       <Text weight="semibold" size={14} color={colors.textFaint} style={styles.num}>
         {channel.num ?? ''}
       </Text>
@@ -73,7 +75,6 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     backgroundColor: colors.glass,
   },
-  active: { backgroundColor: colors.accentSoft },
   focused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
   num: { width: 36, textAlign: 'right' },
   logoBox: { alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.06)' },

@@ -3,9 +3,12 @@ export type TvKeyEvent = { eventType: string; eventKeyAction?: number };
 
 /**
  * One press of the remote → one event type, or null to ignore this event.
- * Android sends only key-up events unless key-down events are switched on natively (we switch them on in
- * plugins/withTvRemote.js, so a press reacts at once). Until a key-down has been seen, key-ups are the presses;
- * after that, key-ups are ignored so a press never counts twice. Holding a direction repeats it (longUp → up, …).
+ * Android sends only key-up events unless key-down events are switched on natively (plugins/withTvRemote.js
+ * does, so a press reacts at once). Until a key-down has been seen, key-ups are the presses; after that,
+ * key-ups are ignored so a press never counts twice. Holding a direction repeats it (longUp → up, …).
+ *
+ * One filter for the whole app (see src/ui/remoteKeys.ts): a listener that starts mid-press (a dialog opened
+ * by OK) must not take that press's key-up for a new press.
  */
 export function createTvPressFilter() {
   let sawKeyDown = false;
