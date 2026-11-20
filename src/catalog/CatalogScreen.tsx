@@ -24,7 +24,8 @@ import { SearchField } from '../ui/SearchField';
 import { Segmented } from '../ui/Segmented';
 import { Text } from '../ui/Text';
 import { colors, radius, tv } from '../ui/tokens';
-import { useColumnEntry } from '../ui/useColumnEntry';
+import { whenEnteredSideways } from '../ui/lastKey';
+import { useOpenRight } from '../ui/useOpenRight';
 import { useWideLayout } from '../ui/useWideLayout';
 import { POSTER_TEXT } from './Poster';
 
@@ -173,10 +174,17 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
   // Coming into the left column from outside (▶ from the menu) lands on the selected category, not
   // on the search box at its top; ▲ from the sort buttons still reaches the search box.
   const categoryList = useRef<SpatialNavigationVirtualizedListRef>(null);
-  const sideEntry = useColumnEntry(() => {
+  const toSelectedCategory = () => {
     const index = screen.categories?.findIndex((c) => c.id === screen.selected) ?? -1;
     if (index >= 0) categoryList.current?.focus(index);
-  });
+  };
+
+  // OK on a category opens it and moves into its grid (the first item) once it is loaded.
+  const openRight = useOpenRight(gridWidth > 0 ? screen.items : null);
+  const openCategory = (id: string) => {
+    screen.select(id);
+    openRight();
+  };
 
   // Back from a detail page: put the focus on that item again.
   const { items, listKey } = screen;
@@ -203,10 +211,9 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
           value={screen.query}
           onChangeText={screen.setQuery}
           placeholder={texts.search(screen.category?.name ?? '')}
-          onFocus={() => sideEntry.focus()}
-          onBlur={sideEntry.blur}
+          onFocus={() => whenEnteredSideways(toSelectedCategory)}
         />
-        <Segmented options={texts.sorts} value={screen.sort} onChange={screen.setSort} compact onFocus={() => sideEntry.focus()} onBlur={sideEntry.blur} />
+        <Segmented options={texts.sorts} value={screen.sort} onChange={screen.setSort} compact />
         <View style={styles.listFill} onLayout={(e) => setCategoryWidth(e.nativeEvent.layout.width)}>
           {screen.categories && categoryWidth > 0 ? (
             <SpatialNavigationVirtualizedList
@@ -218,7 +225,9 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
               additionalItemsRendered={6}
               renderItem={({ item }: { item: CatalogCategory }) => (
                 <DefaultFocus enable={item.id === screen.selected && !memory.focus}>
-                  <Focusable accessibilityLabel={item.name} onFocus={() => sideEntry.focus(item.id === screen.selected)} onBlur={sideEntry.blur} onSelect={() => screen.select(item.id)} style={{ width: categoryWidth }}>
+                  <Focusable accessibilityLabel={item.name} onFocus={() => {
+                      if (item.id !== screen.selected) whenEnteredSideways(toSelectedCategory);
+                    }} onSelect={() => openCategory(item.id)} style={{ width: categoryWidth }}>
                     {({ isFocused }) => <CategoryRow name={item.name} count={item.count} icon={categoryIcon(item.id)} selected={item.id === screen.selected} focused={isFocused} />}
                   </Focusable>
                 </DefaultFocus>

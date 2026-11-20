@@ -19,13 +19,28 @@ type Props = {
 /** Touch phones need a press handler; TV uses the remote, and web gets clicks from the library. */
 const needsPress = Platform.OS !== 'web' && !Platform.isTV;
 
+/** Web dev only: the focused item's label, read by browser tests (`window.__plumcastFocus`). */
+const traceFocus = __DEV__ && Platform.OS === 'web';
+
 /**
  * Anything the remote can move to. Use this instead of Pressable so D-pad focus works
  * on TV and in the browser, and taps still work on phones.
  */
 export function Focusable({ onSelect, onFocus, onBlur, style, accessibilityLabel, indexRange, focusRef, children }: Props) {
   return (
-    <SpatialNavigationFocusableView ref={focusRef} indexRange={indexRange} onSelect={onSelect} onFocus={onFocus} onBlur={onBlur} style={style} viewProps={{ accessibilityLabel, accessibilityRole: 'button' }}>
+    <SpatialNavigationFocusableView
+      ref={focusRef}
+      indexRange={indexRange}
+      onSelect={onSelect}
+      onFocus={
+        traceFocus
+          ? () => {
+              (globalThis as { __plumcastFocus?: string }).__plumcastFocus = accessibilityLabel ?? '?';
+              onFocus?.();
+            }
+          : onFocus
+      }
+      onBlur={onBlur} style={style} viewProps={{ accessibilityLabel, accessibilityRole: 'button' }}>
       {(state) =>
         needsPress ? (
           <Pressable onPress={onSelect} accessibilityLabel={accessibilityLabel}>

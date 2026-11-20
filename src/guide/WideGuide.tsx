@@ -25,7 +25,8 @@ import { Icon, type IconName } from '../ui/Icon';
 import { useI18n } from '../ui/i18n';
 import { Text } from '../ui/Text';
 import { colors, radius, tv } from '../ui/tokens';
-import { useColumnEntry } from '../ui/useColumnEntry';
+import { whenEnteredSideways } from '../ui/lastKey';
+import { useOpenRight } from '../ui/useOpenRight';
 import { useTimeFormat } from '../ui/useTimeFormat';
 import { ProgrammeDialog } from './ProgrammeDialog';
 import { useChannelProgrammes } from './useGuide';
@@ -89,11 +90,17 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
   const list = useRef<SpatialNavigationVirtualizedListRef>(null);
   // Coming into the categories sideways lands on the selected one, not the first.
   const categoryList = useRef<SpatialNavigationVirtualizedListRef>(null);
-  const categoryEntry = useColumnEntry(() => {
+  const toSelectedCategory = () => {
     const index = guide.categories?.findIndex((c) => c.id === guide.selected) ?? -1;
     if (index >= 0) categoryList.current?.focus(index);
-  });
+  };
 
+  // OK on a category opens it and moves into its channels (the first one) once they are loaded.
+  const openRight = useOpenRight(guide.channels);
+  const openCategory = (id: string) => {
+    guide.selectCategory(id);
+    openRight();
+  };
 
   // ▶ from the categories lands on the day chips (the right column's first row); send it on to the channels.
   const focusDay = () => {
@@ -132,10 +139,9 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
                         accessibilityLabel={item.name}
                         onFocus={() => {
                           area.current = 'categories';
-                          categoryEntry.focus(item.id === guide.selected);
+                          if (item.id !== guide.selected) whenEnteredSideways(toSelectedCategory);
                         }}
-                        onBlur={categoryEntry.blur}
-                        onSelect={() => guide.selectCategory(item.id)}
+                        onSelect={() => openCategory(item.id)}
                         style={{ width: sideWidth }}
                       >
                         {({ isFocused }) => <CategoryRow name={item.name} count={item.count} icon={categoryIcon(item.id)} selected={item.id === guide.selected} focused={isFocused} />}
@@ -148,9 +154,9 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
           </SpatialNavigationView>
           <View style={styles.sideButton}>
             {line.busy ? (
-              <Button compact icon="stop" label={t('sync.stop')} onPress={cancelGuideSync} onFocus={() => categoryEntry.focus()} onBlur={categoryEntry.blur} />
+              <Button compact icon="stop" label={t('sync.stop')} onPress={cancelGuideSync} onFocus={() => whenEnteredSideways(toSelectedCategory)} />
             ) : (
-              <Button compact icon="refresh" label={t('guide.update')} onPress={() => void syncGuide(playlist)} onFocus={() => categoryEntry.focus()} onBlur={categoryEntry.blur} />
+              <Button compact icon="refresh" label={t('guide.update')} onPress={() => void syncGuide(playlist)} onFocus={() => whenEnteredSideways(toSelectedCategory)} />
             )}
           </View>
         </SpatialNavigationView>

@@ -21,7 +21,8 @@ import { Screen } from '../../ui/Screen';
 import { SearchField } from '../../ui/SearchField';
 import { Text } from '../../ui/Text';
 import { colors, radius, tv } from '../../ui/tokens';
-import { useColumnEntry } from '../../ui/useColumnEntry';
+import { keyMark, moveRightUnlessMoved, whenEnteredSideways } from '../../ui/lastKey';
+import { useOpenRight } from '../../ui/useOpenRight';
 import { useWideLayout } from '../../ui/useWideLayout';
 
 /** Remembered while the app runs, so coming back opens the same list. */
@@ -84,23 +85,34 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
   const paneChannel = (picked && channels?.find((c) => c.id === picked.id)) || null;
   const pick = (channel: Channel) => {
     if (paneChannel?.id === channel.id) router.push(`/catchup/${encodeURIComponent(channel.id)}`);
-    else setPicked(channel);
+    else {
+      setPicked(channel);
+      // …and moves into the pane (it hands the focus to the newest programme once they are loaded).
+      const mark = keyMark();
+      setTimeout(() => moveRightUnlessMoved(mark), 0);
+    }
   };
 
   // Every column is its own always-mounted navigation node, so ◀ / ▶ always go one column back / on.
   // Coming in sideways lands on the selected category / the channel you were on, not on the first
   // category or the search box above the channels (▲ from the list still reaches it).
   const categoryList = useRef<SpatialNavigationVirtualizedListRef>(null);
-  const categoryEntry = useColumnEntry(() => {
+  const toSelectedCategory = () => {
     const index = screen.categories?.findIndex((c) => c.id === screen.selected) ?? -1;
     if (index >= 0) categoryList.current?.focus(index);
-  });
+  };
   const lastChannel = useRef<string | null>(null);
   const channelList = useRef<SpatialNavigationVirtualizedListRef>(null);
-  const channelEntry = useColumnEntry(() => {
-    if (!channels?.length) return;
-    channelList.current?.focus(Math.max(0, channels.findIndex((c) => c.id === lastChannel.current)));
-  });
+  const toLastChannel = () => {
+    if (channels?.length) channelList.current?.focus(Math.max(0, channels.findIndex((c) => c.id === lastChannel.current)));
+  };
+  // OK on a category opens it and moves into its channels (or the recently aired list) once loaded.
+  const openRight = useOpenRight(screen.selected === AIRED ? screen.aired : channels);
+  const openCategory = (id: string) => {
+    lastChannel.current = null;
+    screen.select(id);
+    openRight();
+  };
   const hasChannels = screen.selected !== AIRED && !!channels?.length;
 
   return (
@@ -120,9 +132,10 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
                 <DefaultFocus enable={item.id === screen.selected}>
                   <Focusable
                     accessibilityLabel={item.name}
-                    onFocus={() => categoryEntry.focus(item.id === screen.selected)}
-                    onBlur={categoryEntry.blur}
-                    onSelect={() => screen.select(item.id)}
+                    onFocus={() => {
+                      if (item.id !== screen.selected) whenEnteredSideways(toSelectedCategory);
+                    }}
+                    onSelect={() => openCategory(item.id)}
                     style={{ width: categoryWidth }}
                   >
                     {({ isFocused }) => <CategoryRow name={item.name} count={item.count} icon={categoryIcon(item.id)} selected={item.id === screen.selected} focused={isFocused} />}
@@ -153,8 +166,7 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
               value={screen.query}
               onChangeText={screen.setQuery}
               placeholder={t('live.search', { category: screen.category?.name ?? '' })}
-              onFocus={() => channelEntry.focus()}
-              onBlur={channelEntry.blur}
+              onFocus={() => whenEnteredSideways(toLastChannel)}
             />
             <View style={styles.listFill} onLayout={(e) => setChannelWidth(e.nativeEvent.layout.width)}>
               {channels === null || channelWidth === 0 ? (
@@ -175,9 +187,7 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
                       accessibilityLabel={item.name}
                       onFocus={() => {
                         lastChannel.current = item.id;
-                        channelEntry.focus(true);
                       }}
-                      onBlur={channelEntry.blur}
                       onSelect={() => pick(item)}
                       style={{ width: channelWidth }}
                     >

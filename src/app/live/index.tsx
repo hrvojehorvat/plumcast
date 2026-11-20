@@ -19,7 +19,8 @@ import { Screen } from '../../ui/Screen';
 import { SearchField } from '../../ui/SearchField';
 import { Text } from '../../ui/Text';
 import { colors, radius, tv } from '../../ui/tokens';
-import { useColumnEntry } from '../../ui/useColumnEntry';
+import { whenEnteredSideways } from '../../ui/lastKey';
+import { useOpenRight } from '../../ui/useOpenRight';
 import { useWideLayout } from '../../ui/useWideLayout';
 
 /** Remembered while the app runs, so coming back to Live TV opens the same list. */
@@ -97,16 +98,22 @@ function WideLive({ playlist }: { playlist: Playlist }) {
   // Coming into a column sideways lands on the selected category / the channel you were on, not on
   // the first category or the search box above the channels (▲ from the list still reaches it).
   const categoryList = useRef<SpatialNavigationVirtualizedListRef>(null);
-  const categoryEntry = useColumnEntry(() => {
+  const toSelectedCategory = () => {
     const index = live.categories?.findIndex((c) => c.id === live.selected) ?? -1;
     if (index >= 0) categoryList.current?.focus(index);
-  });
+  };
   const channelList = useRef<SpatialNavigationVirtualizedListRef>(null);
   const lastChannel = useRef<string | null>(null);
-  const channelEntry = useColumnEntry(() => {
-    if (!live.channels?.length) return;
-    channelList.current?.focus(Math.max(0, live.channels.findIndex((c) => c.id === lastChannel.current)));
-  });
+  const toLastChannel = () => {
+    if (live.channels?.length) channelList.current?.focus(Math.max(0, live.channels.findIndex((c) => c.id === lastChannel.current)));
+  };
+  // OK on a category opens it and moves into its channels (the first one) once they are loaded.
+  const openRight = useOpenRight(live.channels);
+  const openCategory = (id: string) => {
+    lastChannel.current = null;
+    live.select(id);
+    openRight();
+  };
 
   return (
     <SpatialNavigationView direction="horizontal" style={styles.wide}>
@@ -128,9 +135,10 @@ function WideLive({ playlist }: { playlist: Playlist }) {
                   <DefaultFocus enable={item.id === live.selected}>
                     <Focusable
                       accessibilityLabel={item.name}
-                      onFocus={() => categoryEntry.focus(item.id === live.selected)}
-                      onBlur={categoryEntry.blur}
-                      onSelect={() => live.select(item.id)}
+                      onFocus={() => {
+                        if (item.id !== live.selected) whenEnteredSideways(toSelectedCategory);
+                      }}
+                      onSelect={() => openCategory(item.id)}
                       style={{ width: categoryWidth }}
                     >
                       {({ isFocused }) => <CategoryRow name={item.name} count={item.count} icon={categoryIcon(item.id)} selected={item.id === live.selected} focused={isFocused} />}
@@ -142,7 +150,7 @@ function WideLive({ playlist }: { playlist: Playlist }) {
           </View>
         </SpatialNavigationView>
         <View style={styles.editButton}>
-          <Button compact icon="edit" label={t('live.editCategories')} onPress={() => router.push('/live/categories')} onFocus={() => categoryEntry.focus()} onBlur={categoryEntry.blur} />
+          <Button compact icon="edit" label={t('live.editCategories')} onPress={() => router.push('/live/categories')} onFocus={() => whenEnteredSideways(toSelectedCategory)} />
         </View>
       </SpatialNavigationView>
 
@@ -156,8 +164,7 @@ function WideLive({ playlist }: { playlist: Playlist }) {
           value={live.query}
           onChangeText={live.setQuery}
           placeholder={t('live.search', { category: live.category?.name ?? '' })}
-          onFocus={() => channelEntry.focus()}
-          onBlur={channelEntry.blur}
+          onFocus={() => whenEnteredSideways(toLastChannel)}
         />
         <View style={styles.listFill} onLayout={(e) => setChannelWidth(e.nativeEvent.layout.width)}>
           {live.channels === null || channelWidth === 0 ? (
@@ -176,10 +183,8 @@ function WideLive({ playlist }: { playlist: Playlist }) {
               renderItem={({ item }: { item: Channel }) => (
                 <Focusable accessibilityLabel={item.name} onSelect={() => choose(item)} onFocus={() => {
                     lastChannel.current = item.id;
-                    channelEntry.focus(true);
                     setFocused(item);
                   }}
-                  onBlur={channelEntry.blur}
                   style={{ width: channelWidth }}
                 >
                   {({ isFocused }) => <ChannelRow channel={item} playlist={playlist} focused={isFocused} active={preview?.id === item.id} />}
