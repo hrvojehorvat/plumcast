@@ -27,7 +27,7 @@ import { Text } from '../ui/Text';
 import { colors, radius, tv } from '../ui/tokens';
 import { setBackStep, whenEnteredSideways } from '../ui/lastKey';
 import { useLatest } from '../ui/useQuery';
-import { useOpenRight } from '../ui/useOpenRight';
+import { useOpenRight, useSectionEntry } from '../ui/useOpenRight';
 import { useTimeFormat } from '../ui/useTimeFormat';
 import { ProgrammeDialog } from './ProgrammeDialog';
 import { useChannelProgrammes } from './useGuide';
@@ -93,8 +93,11 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
   const categoryList = useRef<SpatialNavigationVirtualizedListRef>(null);
   const toSelectedCategory = () => {
     const index = guide.categories?.findIndex((c) => c.id === guide.selected) ?? -1;
-    if (index >= 0) categoryList.current?.focus(index);
+    if (index < 0 || !categoryList.current) return false;
+    categoryList.current.focus(index);
+    return true;
   };
+  useSectionEntry('guide', toSelectedCategory);
 
   // OK on a category opens it and moves into its channels (the first one) once they are loaded.
   const openRight = useOpenRight(guide.channels);

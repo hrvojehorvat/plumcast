@@ -21,8 +21,8 @@ import { Screen } from '../../ui/Screen';
 import { SearchField } from '../../ui/SearchField';
 import { Text } from '../../ui/Text';
 import { colors, radius, tv } from '../../ui/tokens';
-import { keyMark, moveRightUnlessMoved, setBackStep, whenEnteredSideways } from '../../ui/lastKey';
-import { useOpenRight } from '../../ui/useOpenRight';
+import { keyMark, openRight, setBackStep, whenEnteredSideways } from '../../ui/lastKey';
+import { useOpenRight, useSectionEntry } from '../../ui/useOpenRight';
 import { useWideLayout } from '../../ui/useWideLayout';
 
 /** Remembered while the app runs, so coming back opens the same list. */
@@ -88,8 +88,7 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
     else {
       setPicked(channel);
       // …and moves into the pane (it hands the focus to the newest programme once they are loaded).
-      const mark = keyMark();
-      setTimeout(() => moveRightUnlessMoved(mark), 0);
+      openRight(keyMark());
     }
   };
 
@@ -99,19 +98,22 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
   const categoryList = useRef<SpatialNavigationVirtualizedListRef>(null);
   const toSelectedCategory = () => {
     const index = screen.categories?.findIndex((c) => c.id === screen.selected) ?? -1;
-    if (index >= 0) categoryList.current?.focus(index);
+    if (index < 0 || !categoryList.current) return false;
+    categoryList.current.focus(index);
+    return true;
   };
+  useSectionEntry('catchup', toSelectedCategory);
   const lastChannel = useRef<string | null>(null);
   const channelList = useRef<SpatialNavigationVirtualizedListRef>(null);
   const toLastChannel = () => {
     if (channels?.length) channelList.current?.focus(Math.max(0, channels.findIndex((c) => c.id === lastChannel.current)));
   };
   // OK on a category opens it and moves into its channels (or the recently aired list) once loaded.
-  const openRight = useOpenRight(screen.selected === AIRED ? screen.aired : channels);
+  const enterList = useOpenRight(screen.selected === AIRED ? screen.aired : channels);
   const openCategory = (id: string) => {
     lastChannel.current = null;
     screen.select(id);
-    openRight();
+    enterList();
   };
   const hasChannels = screen.selected !== AIRED && !!channels?.length;
 

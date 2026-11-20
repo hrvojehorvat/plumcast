@@ -1,16 +1,17 @@
 /**
  * Main navigation, in menu order. Phone shows the first four as tabs plus "More".
  * `tool` items (search, settings) aren't about watching; the TV rail sets them apart.
+ * `columns`: on TV the page starts with a categories column, which OK in the menu moves into.
  */
 export const NAV_ITEMS = [
-  { key: 'home', href: '/', tool: false },
-  { key: 'live', href: '/live', tool: false },
-  { key: 'movies', href: '/movies', tool: false },
-  { key: 'series', href: '/series', tool: false },
-  { key: 'catchup', href: '/catchup', tool: false },
-  { key: 'guide', href: '/guide', tool: false },
-  { key: 'search', href: '/search', tool: true },
-  { key: 'settings', href: '/settings', tool: true },
+  { key: 'home', href: '/', tool: false, columns: false },
+  { key: 'live', href: '/live', tool: false, columns: true },
+  { key: 'movies', href: '/movies', tool: false, columns: true },
+  { key: 'series', href: '/series', tool: false, columns: true },
+  { key: 'catchup', href: '/catchup', tool: false, columns: true },
+  { key: 'guide', href: '/guide', tool: false, columns: true },
+  { key: 'search', href: '/search', tool: true, columns: false },
+  { key: 'settings', href: '/settings', tool: true, columns: false },
 ] as const;
 
 export type NavKey = (typeof NAV_ITEMS)[number]['key'];

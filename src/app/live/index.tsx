@@ -20,7 +20,7 @@ import { SearchField } from '../../ui/SearchField';
 import { Text } from '../../ui/Text';
 import { colors, radius, tv } from '../../ui/tokens';
 import { setBackStep, whenEnteredSideways } from '../../ui/lastKey';
-import { useOpenRight } from '../../ui/useOpenRight';
+import { useOpenRight, useSectionEntry } from '../../ui/useOpenRight';
 import { useWideLayout } from '../../ui/useWideLayout';
 
 /** Remembered while the app runs, so coming back to Live TV opens the same list. */
@@ -100,8 +100,11 @@ function WideLive({ playlist }: { playlist: Playlist }) {
   const categoryList = useRef<SpatialNavigationVirtualizedListRef>(null);
   const toSelectedCategory = () => {
     const index = live.categories?.findIndex((c) => c.id === live.selected) ?? -1;
-    if (index >= 0) categoryList.current?.focus(index);
+    if (index < 0 || !categoryList.current) return false;
+    categoryList.current.focus(index);
+    return true;
   };
+  useSectionEntry('live', toSelectedCategory);
   const channelList = useRef<SpatialNavigationVirtualizedListRef>(null);
   const lastChannel = useRef<string | null>(null);
   const toLastChannel = () => {
@@ -266,7 +269,8 @@ const styles = StyleSheet.create({
   categories: { flexBasis: tv.side, flexShrink: 1, minWidth: tv.sideMin, gap: 10 },
   listFill: { flex: 1, minHeight: 0, overflow: 'hidden' },
   editButton: { paddingTop: 8, flexDirection: 'row' },
-  channels: { flex: 1, minWidth: tv.listMin, gap: 8, paddingTop: 2 },
+  // Channels and the preview share the space 0.9 : 1 (the preview gets a bit more).
+  channels: { flexGrow: 0.9, flexShrink: 1, flexBasis: 0, minWidth: tv.listMin, gap: 8, paddingTop: 2 },
   channelsHead: { height: 26, flexDirection: 'row', alignItems: 'center', gap: 8 },
   empty: { lineHeight: 20, maxWidth: 420 },
   phone: { flex: 1, backgroundColor: colors.bg },

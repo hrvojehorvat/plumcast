@@ -26,7 +26,7 @@ import { Text } from '../ui/Text';
 import { colors, radius, tv } from '../ui/tokens';
 import { setBackStep, whenEnteredSideways } from '../ui/lastKey';
 import { useLatest } from '../ui/useQuery';
-import { useOpenRight } from '../ui/useOpenRight';
+import { useOpenRight, useSectionEntry } from '../ui/useOpenRight';
 import { useWideLayout } from '../ui/useWideLayout';
 import { POSTER_TEXT } from './Poster';
 
@@ -177,8 +177,11 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
   const categoryList = useRef<SpatialNavigationVirtualizedListRef>(null);
   const toSelectedCategory = () => {
     const index = screen.categories?.findIndex((c) => c.id === screen.selected) ?? -1;
-    if (index >= 0) categoryList.current?.focus(index);
+    if (index < 0 || !categoryList.current) return false;
+    categoryList.current.focus(index);
+    return true;
   };
+  useSectionEntry(section.key, toSelectedCategory);
 
   // Back from the grid goes straight to the categories (◀ only moves one card).
   const backToCategories = useLatest(toSelectedCategory);

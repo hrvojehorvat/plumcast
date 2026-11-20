@@ -6,7 +6,7 @@ import { NAV_ITEMS, navKeyForPath } from '../core/nav';
 import { Focusable } from './Focusable';
 import { useI18n } from './i18n';
 import { Icon } from './Icon';
-import { keyMark, moveRightUnlessMoved, setBackStep, setMenuFocus } from './lastKey';
+import { keyMark, openRight, sectionEntry, setBackStep, setMenuFocus } from './lastKey';
 import { LogoMark } from './Logo';
 import { colors, radius } from './tokens';
 import { useLatest } from './useQuery';
@@ -25,18 +25,17 @@ export function Sidebar() {
     return () => setMenuFocus(null);
   }, [entry.focusCurrent]);
 
-  // OK: open the section, then step into it (▶) as soon as its page shows and has something to focus.
+  // OK: open the section, then step into it once its page shows: a page with columns onto its selected
+  // category (once that column is there; ▶ would skip a column still loading), any other page with ▶.
   const shown = useLatest(active);
-  const open = (key: string, href: string, isActive: boolean) => {
-    if (!isActive) router.replace(href);
-    const mark = keyMark();
-    let tries = 0;
-    const step = () => {
-      if (!entry.isInside() || keyMark() !== mark || tries++ > 40) return;
-      if (shown.current === key) moveRightUnlessMoved(mark);
-      setTimeout(step, 100);
-    };
-    setTimeout(step, 0);
+  const open = (item: (typeof NAV_ITEMS)[number], isActive: boolean) => {
+    if (!isActive) router.replace(item.href);
+    openRight(keyMark(), () => {
+      if (shown.current !== item.key) return 'wait';
+      if (!item.columns) return 'right';
+      const focusFirst = sectionEntry(item.key);
+      return focusFirst?.() ? 'done' : 'wait';
+    });
   };
 
   return (
@@ -60,7 +59,7 @@ export function Sidebar() {
                     entry.focus(item.key);
                   }}
                   onBlur={entry.blur}
-                  onSelect={() => open(item.key, item.href, isActive)}
+                  onSelect={() => open(item, isActive)}
                 >
                   {({ isFocused }) => (
                     <View style={[styles.item, isFocused && styles.focused]}>

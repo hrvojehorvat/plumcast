@@ -28,16 +28,35 @@ export function whenEnteredSideways(target: () => void) {
   if (last === Directions.LEFT || last === Directions.RIGHT) setTimeout(target, 0);
 }
 
-/** A mark to pass to moveRightUnlessMoved later. */
+/** Counts focus changes (every focusable item reports its focus through resetBackStep). */
+let focusMoves = 0;
+
+/** A mark to pass to openRight later. */
 export function keyMark() {
   return presses;
 }
 
-/** Moves the focus one column right, as ▶ would, unless the user pressed a key after `mark`. */
-export function moveRightUnlessMoved(mark: number) {
-  if (presses !== mark || !send) return;
-  last = Directions.RIGHT;
-  send(Directions.RIGHT);
+/**
+ * After OK: moves the focus into the column on the right, as ▶ would. Tries again every 100 ms until
+ * the focus has moved (on a TV the column's items can take a moment to register, and a ▶ before that
+ * goes nowhere), for up to 4 s. Stops when the user pressed a key after `mark`.
+ * `entry`, when given, decides each try: 'done' (it put the focus in place itself), 'wait' (not there
+ * yet) or 'right' (send ▶).
+ */
+export function openRight(mark: number, entry: () => 'done' | 'wait' | 'right' = () => 'right') {
+  const start = focusMoves;
+  let tries = 0;
+  const step = () => {
+    if (presses !== mark || focusMoves !== start || tries++ > 40) return;
+    const next = entry();
+    if (next === 'done') return;
+    if (next === 'right' && send) {
+      last = Directions.RIGHT;
+      send(Directions.RIGHT);
+    }
+    setTimeout(step, 100);
+  };
+  setTimeout(step, 0);
 }
 
 // ---------------------------------------------------------------- Back
@@ -53,6 +72,7 @@ export function setMenuFocus(focus: (() => void) | null) {
 
 /** Every focusable item calls this on focus (before its own onFocus): Back goes to the menu… */
 export function resetBackStep() {
+  focusMoves += 1;
   backStep = toMenu;
 }
 
@@ -68,4 +88,22 @@ export function stepBack(): boolean {
   last = Directions.LEFT;
   step();
   return true;
+}
+
+// ---------------------------------------------------------------- Entering a section from the menu
+
+/**
+ * Pages with columns register how to put the focus on their first column (the selected category);
+ * it returns false while that column isn't there yet. OK in the menu waits for it instead of ▶,
+ * which would skip a column that is still loading.
+ */
+const entries = new Map<string, () => boolean>();
+
+export function setSectionEntry(section: string, entry: (() => boolean) | null) {
+  if (entry) entries.set(section, entry);
+  else entries.delete(section);
+}
+
+export function sectionEntry(section: string) {
+  return entries.get(section);
 }

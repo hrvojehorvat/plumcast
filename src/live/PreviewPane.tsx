@@ -93,7 +93,7 @@ export function PreviewPane({ playlist, channel, playing }: { playlist: Playlist
 }
 
 const styles = StyleSheet.create({
-  pane: { flexBasis: 280, flexShrink: 1, minWidth: 170, gap: 10, paddingTop: 2 },
+  pane: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 170, gap: 10, paddingTop: 2 },
   flex: { flex: 1 },
   video: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: '#000', borderWidth: 1, borderColor: colors.border },
   videoCover: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16 },
