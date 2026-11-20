@@ -33,7 +33,7 @@ export function TabBar() {
       {tabs.map((tab) => {
         const isActive = tab.key === activeTab;
         return (
-          <Focusable key={tab.key} style={styles.tab} accessibilityLabel={tab.label} onSelect={() => router.navigate(tab.href)}>
+          <Focusable key={tab.key} style={styles.tab} accessibilityLabel={tab.label} onSelect={() => router.replace(tab.href)}>
             {({ isFocused }) => {
               const color = isActive || isFocused ? colors.accentLight : colors.textFaint;
               return (

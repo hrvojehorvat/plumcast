@@ -214,6 +214,22 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
       case 'channelDown':
         livePlayer.step(-1);
         break;
+      case 'playPause':
+        togglePause();
+        break;
+      case 'play':
+        if (paused || status.ended) togglePause();
+        break;
+      case 'pause':
+        if (!paused && !status.ended) togglePause();
+        break;
+      case 'rewind':
+      case 'fastForward':
+        nudge(k === 'fastForward' ? 1 : -1);
+        break;
+      case 'stop':
+        livePlayer.close();
+        break;
       case 'info':
         showOverlay();
         break;
@@ -283,7 +299,7 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
               <View style={styles.badge}>
                 <Text weight="semibold" size={12} color="#ffffff">{t('player.replay').toUpperCase()}</Text>
               </View>
-              {channel.logo ? <Image source={{ uri: channel.logo }} style={styles.logo} resizeMode="contain" /> : null}
+              {channel.logo ? <Image source={{ uri: channel.logo }} resizeMethod="resize" style={styles.logo} resizeMode="contain" /> : null}
               <Text weight="bold" size={20} numberOfLines={1} style={styles.flex}>
                 {channel.name}
                 {source && source.id !== channel.id ? (

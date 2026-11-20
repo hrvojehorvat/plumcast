@@ -1,9 +1,11 @@
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from '@expo-google-fonts/inter';
-import { Slot } from 'expo-router';
+import { router, Slot, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { BackHandler, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SpatialNavigationRoot, SpatialNavigationView } from 'react-tv-space-navigation';
+import { backAction } from '../core/nav';
 import { playlists } from '../data/store';
 import { LivePlayerHost } from '../player/LivePlayer';
 import { I18nProvider } from '../ui/i18n';
@@ -11,6 +13,7 @@ import { configureRemote } from '../ui/remote';
 import { Sidebar } from '../ui/Sidebar';
 import { TabBar } from '../ui/TabBar';
 import { colors } from '../ui/tokens';
+import { useLatest } from '../ui/useQuery';
 import { useWideLayout } from '../ui/useWideLayout';
 
 configureRemote();
@@ -32,6 +35,7 @@ export default function RootLayout() {
 /** Sidebar + page on TV and wide windows; page + bottom tabs on phones. */
 function Shell() {
   const wide = useWideLayout();
+  useSectionBack(wide);
   return (
     <SpatialNavigationRoot>
       <SpatialNavigationView direction={wide ? 'horizontal' : 'vertical'} style={styles.root}>
@@ -44,6 +48,25 @@ function Shell() {
       <LivePlayerHost />
     </SpatialNavigationRoot>
   );
+}
+
+/**
+ * Android Back on the main sections: section → Home, Home → leave the app. Registered after the
+ * navigator's own handler so it wins over "go back through every page the menu opened";
+ * dialogs, the player and detail pages register later still, so they keep handling Back first.
+ */
+function useSectionBack(wide: boolean) {
+  const latest = useLatest({ pathname: usePathname(), wide });
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      const action = backAction(latest.current.pathname, latest.current.wide);
+      if (action === 'pass') return false;
+      if (action === 'exit') BackHandler.exitApp();
+      else router.replace(action.go);
+      return true;
+    });
+    return () => sub.remove();
+  }, [latest]);
 }
 
 const styles = StyleSheet.create({

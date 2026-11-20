@@ -8,13 +8,17 @@
     "userInterfaceStyle": "dark",
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0c0a12",
+        "backgroundColor": "#7a35b5",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.mrvoje.plumcast"
+      "package": "com.mrvoje.plumcast",
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -28,7 +32,8 @@
         "@react-native-tvos/config-tv",
         {
           "isTV": true,
-          "androidTVRequired": false
+          "androidTVRequired": false,
+          "androidTVBanner": "./assets/tv-banner.png"
         }
       ],
       "expo-sqlite",
@@ -43,6 +48,27 @@
             "useExoplayerHls": true,
             "useExoplayerDash": false
           }
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "buildArchs": [
+              "armeabi-v7a",
+              "arm64-v8a"
+            ]
+          }
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120,
+          "resizeMode": "contain",
+          "backgroundColor": "#0c0a12"
         }
       ]
     ],

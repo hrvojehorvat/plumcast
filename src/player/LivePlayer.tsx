@@ -196,6 +196,9 @@ function LivePlayer({ session }: { session: LiveSession }) {
           setOverlay(false);
         } else showOverlay();
         break;
+      case 'stop':
+        livePlayer.close();
+        break;
       case 'info':
         showOverlay();
         break;
@@ -245,7 +248,7 @@ function LivePlayer({ session }: { session: LiveSession }) {
           <View style={styles.panelInner}>
             <View style={styles.channelLine}>
               {channel.num !== null ? <Text weight="bold" size={22} color={colors.accentLight}>{channel.num}</Text> : null}
-              {channel.logo ? <Image source={{ uri: channel.logo }} style={styles.logo} resizeMode="contain" /> : null}
+              {channel.logo ? <Image source={{ uri: channel.logo }} resizeMethod="resize" style={styles.logo} resizeMode="contain" /> : null}
               <Text weight="bold" size={22} numberOfLines={1} style={styles.flex}>{channel.name}</Text>
               {channel.favorite ? <Icon name="star" size={20} color={colors.accentLight} filled /> : null}
             </View>

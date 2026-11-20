@@ -16,7 +16,7 @@ export default function More() {
     <Screen title={t('nav.more')}>
       <SpatialNavigationView direction="vertical" style={styles.list}>
         {PHONE_MORE.map((key) => (
-          <Focusable key={key} accessibilityLabel={t(`nav.${key}`)} onSelect={() => router.navigate(NAV_ITEMS.find((i) => i.key === key)!.href)}>
+          <Focusable key={key} accessibilityLabel={t(`nav.${key}`)} onSelect={() => router.replace(NAV_ITEMS.find((i) => i.key === key)!.href)}>
             {({ isFocused }) => (
               <View style={[styles.row, isFocused && styles.focused]}>
                 <Icon name={key} color={colors.accentLight} />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NAV_ITEMS, PHONE_MORE, PHONE_TABS, navKeyForPath } from './nav';
+import { NAV_ITEMS, PHONE_MORE, PHONE_TABS, backAction, navKeyForPath } from './nav';
 
 describe('nav', () => {
   it('keeps the agreed menu order', () => {
@@ -27,5 +27,23 @@ describe('nav', () => {
   it('puts the playlist pages under Settings', () => {
     expect(navKeyForPath('/playlists/add')).toBe('settings');
     expect(navKeyForPath('/playlists/3')).toBe('settings');
+  });
+
+  it('sends Back from a section Home, and leaves the app from Home', () => {
+    expect(backAction('/', true)).toBe('exit');
+    expect(backAction('/live', true)).toEqual({ go: '/' });
+    expect(backAction('/settings/', true)).toEqual({ go: '/' });
+    expect(backAction('/movies', false)).toEqual({ go: '/' });
+  });
+
+  it('sends Back from a phone "More" section to More', () => {
+    expect(backAction('/guide', false)).toEqual({ go: '/more' });
+    expect(backAction('/more', false)).toEqual({ go: '/' });
+  });
+
+  it('leaves Back on sub pages to the page', () => {
+    expect(backAction('/movies/12', true)).toBe('pass');
+    expect(backAction('/playlists/add', false)).toBe('pass');
+    expect(backAction('/live/categories', true)).toBe('pass');
   });
 });

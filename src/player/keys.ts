@@ -1,5 +1,8 @@
 /** Keys the player reacts to, from the TV remote or a keyboard. */
-export type PlayerKey = 'up' | 'down' | 'left' | 'right' | 'select' | 'back' | 'channelUp' | 'channelDown' | 'info' | `digit${string}`;
+export type PlayerKey = 'up' | 'down' | 'left' | 'right' | 'select' | 'back' | 'channelUp' | 'channelDown' | 'info' | MediaKey | `digit${string}`;
+
+/** Media buttons (Fire TV remote, Android TV remotes, keyboards): only movies, episodes and replays use them. */
+export type MediaKey = 'playPause' | 'play' | 'pause' | 'rewind' | 'fastForward' | 'stop';
 
 /** Keyboard event key → player key (browser). */
 export function keyFromKeyboard(key: string): PlayerKey | null {
@@ -20,6 +23,14 @@ export function keyFromKeyboard(key: string): PlayerKey | null {
     case 'ChannelDown': return 'channelDown';
     case 'i':
     case 'Info': return 'info';
+    case 'MediaPlayPause': return 'playPause';
+    case 'MediaPlay': return 'play';
+    case 'MediaPause': return 'pause';
+    case 'MediaRewind': return 'rewind';
+    case 'MediaFastForward': return 'fastForward';
+    case 'MediaStop': return 'stop';
+    case 'MediaTrackNext': return 'channelUp';
+    case 'MediaTrackPrevious': return 'channelDown';
     default: return null;
   }
 }
@@ -39,6 +50,15 @@ export function keyFromTvEvent(eventType: string): PlayerKey | null {
     case 'pageDown': return 'channelDown';
     case 'info':
     case 'menu': return 'info';
+    case 'playPause':
+    case 'play':
+    case 'pause':
+    case 'rewind':
+    case 'fastForward':
+    case 'stop': return eventType;
+    // ⏭ / ⏮ zap like CH+ / CH−.
+    case 'next': return 'channelUp';
+    case 'previous': return 'channelDown';
     default: return null;
   }
 }

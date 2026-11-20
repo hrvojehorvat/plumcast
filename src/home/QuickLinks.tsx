@@ -28,7 +28,7 @@ export function QuickLinks({ playlist }: { playlist: Playlist }) {
     <SpatialNavigationView direction="horizontal" style={wide ? styles.row : styles.rowWrap}>
       {LINKS.map((link, i) => {
         const tile = (
-          <Focusable key={link.key} accessibilityLabel={t(`nav.${link.key}`)} onSelect={() => router.navigate(link.href)} style={wide ? styles.cellWide : styles.cell}>
+          <Focusable key={link.key} accessibilityLabel={t(`nav.${link.key}`)} onSelect={() => router.replace(link.href)} style={wide ? styles.cellWide : styles.cell}>
             {({ isFocused }) => (
               <View style={[styles.tile, !wide && styles.tileSmall, isFocused && styles.focused]}>
                 <View style={[styles.icon, !wide && styles.iconSmall, isFocused && styles.iconFocused]}>

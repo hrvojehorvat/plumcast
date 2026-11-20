@@ -17,6 +17,14 @@ describe('player keys', () => {
     expect(keyFromTvEvent('blur')).toBeNull();
   });
 
+  it('maps media buttons', () => {
+    expect(keyFromTvEvent('playPause')).toBe('playPause');
+    expect(keyFromTvEvent('fastForward')).toBe('fastForward');
+    expect(keyFromTvEvent('next')).toBe('channelUp');
+    expect(keyFromKeyboard('MediaPlayPause')).toBe('playPause');
+    expect(keyFromKeyboard('MediaTrackPrevious')).toBe('channelDown');
+  });
+
   it('collects up to four digits without leading zeros', () => {
     expect(addDigit('', '0')).toBe('0');
     expect(addDigit('0', '5')).toBe('5');

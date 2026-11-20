@@ -173,7 +173,7 @@ function Details({ playlist, movie, wide, topInset }: { playlist: Playlist; movi
     <View style={styles.root}>
       {backdrop ? (
         <>
-          <Image source={{ uri: backdrop }} style={StyleSheet.absoluteFill} resizeMode="cover" blurRadius={wide ? 0 : 8} />
+          <Image source={{ uri: backdrop }} resizeMethod="resize" style={StyleSheet.absoluteFill} resizeMode="cover" blurRadius={wide ? 0 : 8} />
           <View style={[StyleSheet.absoluteFill, styles.shade]} />
         </>
       ) : null}

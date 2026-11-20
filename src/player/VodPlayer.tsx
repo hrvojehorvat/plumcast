@@ -236,6 +236,22 @@ export function VodPlayer({ session }: { session: VodSession }) {
           showOverlay();
         } else togglePause();
         break;
+      case 'playPause':
+        togglePause();
+        break;
+      case 'play':
+        if (paused || ended) togglePause();
+        break;
+      case 'pause':
+        if (!paused && !ended) togglePause();
+        break;
+      case 'rewind':
+      case 'fastForward':
+        nudge(k === 'fastForward' ? 1 : -1);
+        break;
+      case 'stop':
+        moviePlayer.close();
+        break;
       case 'info':
         showOverlay();
         break;

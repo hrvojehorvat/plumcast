@@ -16,7 +16,7 @@ export function Sidebar() {
   const active = navKeyForPath(usePathname());
   const openOnFocus = useFocusSelect(active, (key: string) => {
     const item = NAV_ITEMS.find((i) => i.key === key);
-    if (item) router.navigate(item.href);
+    if (item) router.replace(item.href);
   });
 
   return (
@@ -31,7 +31,7 @@ export function Sidebar() {
             <Fragment key={item.key}>
               {item.tool && !NAV_ITEMS[i - 1]?.tool ? <View style={styles.divider} /> : null}
               <DefaultFocus enable={isActive}>
-                <Focusable accessibilityLabel={t(`nav.${item.key}`)} onFocus={() => openOnFocus.onFocus(item.key)} onBlur={() => openOnFocus.onBlur(item.key)} onSelect={() => router.navigate(item.href)}>
+                <Focusable accessibilityLabel={t(`nav.${item.key}`)} onFocus={() => openOnFocus.onFocus(item.key)} onBlur={() => openOnFocus.onBlur(item.key)} onSelect={() => router.replace(item.href)}>
                   {({ isFocused }) => (
                     <View
                       style={[

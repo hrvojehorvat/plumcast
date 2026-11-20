@@ -25,3 +25,19 @@ export function navKeyForPath(pathname: string): NavKey | 'more' {
   if (first === 'playlists') return 'settings';
   return NAV_ITEMS.find((item) => item.href === `/${first}`)?.key ?? 'home';
 }
+
+/** What the Android Back key does on a page: go to a page, leave the app, or let the page / navigator handle it. */
+export type BackAction = { go: string } | 'exit' | 'pass';
+
+/**
+ * Back on a main section goes Home (on phones the "More" sections go back to More); Back on Home
+ * leaves the app. Sub pages (details, playlists, …) handle Back themselves.
+ */
+export function backAction(pathname: string, wide: boolean): BackAction {
+  const path = pathname.replace(/\/+$/, '') || '/';
+  if (path === '/') return 'exit';
+  if (path === '/more') return { go: '/' };
+  const item = NAV_ITEMS.find((i) => i.href === path);
+  if (!item) return 'pass';
+  return { go: !wide && PHONE_MORE.includes(item.key) ? '/more' : '/' };
+}

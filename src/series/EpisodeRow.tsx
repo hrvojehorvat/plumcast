@@ -44,7 +44,7 @@ export const EpisodeRow = memo(function EpisodeRow({
     <View style={[styles.row, focused && styles.focused]}>
       <View style={[styles.thumb, { width: thumbWidth, height: Math.round((thumbWidth * 9) / 16) }]}>
         {episode.image && !broken ? (
-          <Image source={{ uri: episode.image }} style={styles.image} resizeMode="cover" onError={() => setBroken(true)} />
+          <Image source={{ uri: episode.image }} resizeMethod="resize" style={styles.image} resizeMode="cover" onError={() => setBroken(true)} />
         ) : (
           <Text weight="bold" size={20} color={colors.textFaint}>{episode.number}</Text>
         )}

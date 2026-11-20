@@ -15,7 +15,7 @@ export function ChannelLogo({ channel, width = 56, height = 40 }: { channel: Cha
   return (
     <View style={[styles.logoBox, { width, height }]}>
       {channel.logo ? (
-        <Image source={{ uri: channel.logo }} style={{ width: width - 8, height: height - 8 }} resizeMode="contain" />
+        <Image source={{ uri: channel.logo }} resizeMethod="resize" style={{ width: width - 8, height: height - 8 }} resizeMode="contain" />
       ) : (
         <Text weight="bold" size={16} color={colors.textMuted}>{channel.name.slice(0, 1).toUpperCase()}</Text>
       )}

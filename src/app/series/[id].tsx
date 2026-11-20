@@ -168,7 +168,7 @@ function Details({ playlist, series, wide, topInset }: { playlist: Playlist; ser
 
   const background = backdrop ? (
     <>
-      <Image source={{ uri: backdrop }} style={StyleSheet.absoluteFill} resizeMode="cover" blurRadius={wide ? 0 : 8} />
+      <Image source={{ uri: backdrop }} resizeMethod="resize" style={StyleSheet.absoluteFill} resizeMode="cover" blurRadius={wide ? 0 : 8} />
       <View style={[StyleSheet.absoluteFill, styles.shade]} />
     </>
   ) : null;

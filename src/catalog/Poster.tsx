@@ -32,7 +32,7 @@ export const Poster = memo(function Poster({ title, subtitle, highlight, image, 
     <View style={{ width }}>
       <View style={[styles.frame, { height }, focused && styles.focused]}>
         {image && !broken ? (
-          <Image source={{ uri: image }} style={styles.image} resizeMode="cover" onError={() => setBroken(true)} />
+          <Image source={{ uri: image }} resizeMethod="resize" style={styles.image} resizeMode="cover" onError={() => setBroken(true)} />
         ) : (
           <View style={styles.empty}>
             <Text weight="bold" size={28} color={colors.textFaint}>{title.slice(0, 1).toUpperCase()}</Text>
