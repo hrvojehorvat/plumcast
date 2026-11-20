@@ -19,6 +19,7 @@ import { Screen } from '../../ui/Screen';
 import { SearchField } from '../../ui/SearchField';
 import { Text } from '../../ui/Text';
 import { colors, radius } from '../../ui/tokens';
+import { useFocusSelect } from '../../ui/useFocusSelect';
 import { useWideLayout } from '../../ui/useWideLayout';
 
 /** Remembered while the app runs, so coming back to Live TV opens the same list. */
@@ -97,6 +98,7 @@ function WideLive({ playlist }: { playlist: Playlist }) {
   };
 
   const shown = focused ?? preview;
+  const focusCategory = useFocusSelect(live.selected, live.select);
 
   return (
     <SpatialNavigationView direction="horizontal" style={styles.wide}>
@@ -116,7 +118,7 @@ function WideLive({ playlist }: { playlist: Playlist }) {
                   additionalItemsRendered={6}
                   renderItem={({ item }: { item: CategoryItem }) => (
                     <DefaultFocus enable={item.id === live.selected}>
-                      <Focusable accessibilityLabel={item.name} onSelect={() => live.select(item.id)} style={{ width: categoryWidth }}>
+                      <Focusable accessibilityLabel={item.name} onFocus={() => focusCategory.onFocus(item.id)} onBlur={() => focusCategory.onBlur(item.id)} onSelect={() => live.select(item.id)} style={{ width: categoryWidth }}>
                         {({ isFocused }) => <CategoryRow item={item} selected={item.id === live.selected} focused={isFocused} />}
                       </Focusable>
                     </DefaultFocus>

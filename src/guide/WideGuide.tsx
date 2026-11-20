@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
   DefaultFocus,
@@ -25,6 +25,7 @@ import { Icon } from '../ui/Icon';
 import { useI18n } from '../ui/i18n';
 import { Text } from '../ui/Text';
 import { colors, radius } from '../ui/tokens';
+import { useFocusSelect } from '../ui/useFocusSelect';
 import { useTimeFormat } from '../ui/useTimeFormat';
 import { ProgrammeDialog } from './ProgrammeDialog';
 import { useChannelProgrammes } from './useGuide';
@@ -37,7 +38,6 @@ const GAP = 6;
 /** About this many minutes fit on screen. */
 const VISIBLE_MIN = 120;
 /** How long the focus rests on a category before the guide switches to it. */
-const CATEGORY_DELAY_MS = 300;
 const HALF_HOUR = 30 * 60_000;
 
 const floorHalfHour = (ms: number) => Math.floor(ms / HALF_HOUR) * HALF_HOUR;
@@ -90,16 +90,11 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
   const list = useRef<SpatialNavigationVirtualizedListRef>(null);
 
   // Moving through the categories switches the guide once the focus rests a moment.
-  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectOnFocus = useFocusSelect(guide.selected, guide.selectCategory);
   const focusCategory = (id: string) => {
     area.current = 'categories';
-    if (pending.current) clearTimeout(pending.current);
-    if (id === guide.selected) return;
-    pending.current = setTimeout(() => guide.selectCategory(id), CATEGORY_DELAY_MS);
+    selectOnFocus.onFocus(id);
   };
-  useEffect(() => () => {
-    if (pending.current) clearTimeout(pending.current);
-  }, []);
 
   // ▶ from the categories lands on the day chips (the right column's first row); send it on to the channels.
   const focusDay = () => {
@@ -136,6 +131,7 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
                       <Focusable
                         accessibilityLabel={item.name}
                         onFocus={() => focusCategory(item.id)}
+                        onBlur={() => selectOnFocus.onBlur(item.id)}
                         onSelect={() => guide.selectCategory(item.id)}
                         style={{ width: sideWidth }}
                       >

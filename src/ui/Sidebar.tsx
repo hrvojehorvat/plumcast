@@ -8,11 +8,16 @@ import { useI18n } from './i18n';
 import { Icon } from './Icon';
 import { LogoMark } from './Logo';
 import { colors, radius } from './tokens';
+import { useFocusSelect } from './useFocusSelect';
 
-/** TV / desktop navigation rail (80 px), as in the TV mockups. */
+/** TV / desktop navigation rail (80 px). Resting the remote focus on an item opens that page, no OK needed. */
 export function Sidebar() {
   const { t } = useI18n();
   const active = navKeyForPath(usePathname());
+  const openOnFocus = useFocusSelect(active, (key: string) => {
+    const item = NAV_ITEMS.find((i) => i.key === key);
+    if (item) router.navigate(item.href);
+  });
 
   return (
     <View style={styles.rail}>
@@ -26,7 +31,7 @@ export function Sidebar() {
             <Fragment key={item.key}>
               {item.tool && !NAV_ITEMS[i - 1]?.tool ? <View style={styles.divider} /> : null}
               <DefaultFocus enable={isActive}>
-                <Focusable accessibilityLabel={t(`nav.${item.key}`)} onSelect={() => router.navigate(item.href)}>
+                <Focusable accessibilityLabel={t(`nav.${item.key}`)} onFocus={() => openOnFocus.onFocus(item.key)} onBlur={() => openOnFocus.onBlur(item.key)} onSelect={() => router.navigate(item.href)}>
                   {({ isFocused }) => (
                     <View
                       style={[

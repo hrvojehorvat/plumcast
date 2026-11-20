@@ -134,6 +134,7 @@ Two ways in, both showing only programmes that really have a replay:
   - Stream format: MPEG-TS (default) or HLS for live TV and catch-up URLs. Movies and episodes keep their own file type.
   - Clear cache: deletes the stored TV guide and now/next cache; playlists, favourites and progress stay. There is no image cache of our own to clear (images use the system cache). The guide downloads again next time it is needed.
   - About: app name, version from app.json, and a line that Plumcast contains no channels or content.
+  - Remote (all screens): the left menu and every category column (Live TV, Movies, Series, Catch-up, TV guide) open what the focus rests on after 0.3 s, no OK needed; ▶ then goes into it. Moving on before that cancels it, so the page you enter is never swapped out. OK stays for buttons, channels, posters.
 
 ### 9. Android, Android TV and Fire TV polish
 - Android TV: launcher banner (320×180), Leanback launcher, no touchscreen required.

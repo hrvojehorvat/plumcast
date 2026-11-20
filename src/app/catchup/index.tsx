@@ -20,6 +20,7 @@ import { Screen } from '../../ui/Screen';
 import { SearchField } from '../../ui/SearchField';
 import { Text } from '../../ui/Text';
 import { colors, radius } from '../../ui/tokens';
+import { useFocusSelect } from '../../ui/useFocusSelect';
 import { useWideLayout } from '../../ui/useWideLayout';
 
 /** Remembered while the app runs, so coming back opens the same list. */
@@ -92,6 +93,7 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
     setTimeout(() => channelList.current?.focus(Math.max(0, index)), 0);
   };
   const hasChannels = screen.selected !== AIRED && !!channels?.length;
+  const focusCategory = useFocusSelect(screen.selected, screen.select);
 
   return (
     <SpatialNavigationView direction="horizontal" style={styles.wide}>
@@ -112,7 +114,9 @@ function WideCatchup({ playlist }: { playlist: Playlist }) {
                     onFocus={() => {
                       if (column.current === 'pane' && hasChannels) return focusChannel();
                       column.current = 'categories';
+                      focusCategory.onFocus(item.id);
                     }}
+                    onBlur={() => focusCategory.onBlur(item.id)}
                     onSelect={() => screen.select(item.id)}
                     style={{ width: categoryWidth }}
                   >

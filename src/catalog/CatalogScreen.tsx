@@ -23,6 +23,7 @@ import { SearchField } from '../ui/SearchField';
 import { Segmented } from '../ui/Segmented';
 import { Text } from '../ui/Text';
 import { colors, radius } from '../ui/tokens';
+import { useFocusSelect } from '../ui/useFocusSelect';
 import { useWideLayout } from '../ui/useWideLayout';
 import { POSTER_TEXT } from './Poster';
 
@@ -161,6 +162,7 @@ function gridFor(width: number) {
 function WideCatalog<T extends { id: string; name: string }>({ section, playlist }: { section: CatalogSection<T>; playlist: Playlist }) {
   const texts = useTexts(section.key);
   const screen = useCatalog(section, playlist);
+  const focusCategory = useFocusSelect(screen.selected, screen.select);
   const memory = memories[section.key];
   const [categoryWidth, setCategoryWidth] = useState(0);
   const [gridWidth, setGridWidth] = useState(0);
@@ -203,7 +205,7 @@ function WideCatalog<T extends { id: string; name: string }>({ section, playlist
               additionalItemsRendered={6}
               renderItem={({ item }: { item: CatalogCategory }) => (
                 <DefaultFocus enable={item.id === screen.selected && !memory.focus}>
-                  <Focusable accessibilityLabel={item.name} onSelect={() => screen.select(item.id)} style={{ width: categoryWidth }}>
+                  <Focusable accessibilityLabel={item.name} onFocus={() => focusCategory.onFocus(item.id)} onBlur={() => focusCategory.onBlur(item.id)} onSelect={() => screen.select(item.id)} style={{ width: categoryWidth }}>
                     {({ isFocused }) => <CategoryRow item={item} selected={item.id === screen.selected} focused={isFocused} />}
                   </Focusable>
                 </DefaultFocus>
