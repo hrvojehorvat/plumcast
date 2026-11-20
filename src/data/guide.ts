@@ -4,7 +4,8 @@ import { Platform } from 'react-native';
 import { PlaylistError, toPlaylistError } from '../core/errors';
 import { createUtf8Decoder, XmltvParser } from '../core/xmltv';
 import { xmltvUrl } from '../core/xtream';
-import { invalidateProgrammes } from './epg';
+import { getDb } from './db';
+import { clearProgrammeCache, invalidateProgrammes } from './epg';
 import { guideChannelIds, readGuideStatus, saveGuide, type GuideRow, type GuideStatus } from './guideDb';
 import { routeUrl } from './net';
 import { readSecret, type Playlist } from './playlists';
@@ -87,6 +88,21 @@ export async function ensureGuide(playlist: Playlist, now = Date.now()) {
   if (problem && now - problem.at < RETRY_FAILED_MS) return;
   if (status && now - status.fetchedAt < GUIDE_FRESH_MS) return;
   await syncGuide(playlist);
+}
+
+/**
+ * Settings → Clear cache: forgets every downloaded guide and the now/next kept in memory.
+ * Playlists, favourites and progress stay; the guide downloads again when it is next needed.
+ */
+export async function clearGuideCache() {
+  controller?.abort();
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM epg');
+    await db.runAsync("DELETE FROM settings WHERE key LIKE 'guide:%'");
+  });
+  set({ status: {}, problem: {} });
+  clearProgrammeCache();
 }
 
 export function cancelGuideSync() {

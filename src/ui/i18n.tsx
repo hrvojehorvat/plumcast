@@ -1,7 +1,8 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { MESSAGES, interpolate, langFromLocale, type Lang, type MessageKey } from '../core/i18n';
+import { setPrefs, usePrefs } from '../data/prefs';
 
-type I18n = { lang: Lang; setLang: (lang: Lang) => void; t: (key: MessageKey, params?: Record<string, string | number>) => string };
+type I18n = { lang: Lang; setLang: (lang: Lang | null) => void; t: (key: MessageKey, params?: Record<string, string | number>) => string };
 
 const I18nContext = createContext<I18n | null>(null);
 
@@ -13,9 +14,12 @@ function deviceLocale(): string | undefined {
   }
 }
 
-/** UI language: device language for now; Settings (phase 8) will let the user pick and store it. */
+const setLang = (lang: Lang | null) => void setPrefs({ lang });
+
+/** UI language: the one picked in Settings, else the device language. */
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState<Lang>(() => langFromLocale(deviceLocale()));
+  const chosen = usePrefs().lang;
+  const lang = useMemo(() => chosen ?? langFromLocale(deviceLocale()), [chosen]);
   const value = useMemo<I18n>(() => ({ lang, setLang, t: (key, params) => interpolate(MESSAGES[lang][key], params) }), [lang]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

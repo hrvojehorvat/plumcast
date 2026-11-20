@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { liveStreamUrl } from '../core/streams';
+import { usePrefs } from '../data/prefs';
 import {
   ALL,
   FAVORITES,
@@ -57,8 +58,9 @@ export function useChannels(playlist: Playlist | null, categoryId: string | null
  * undefined while loading, null when the channel can't be played.
  */
 export function useStreamUrl(playlist: Playlist | null, channel: Channel | null): string | null | undefined {
-  const key = playlist && channel ? `${playlist.id}|${playlist.syncedAt ?? 0}|${channel.id}` : null;
-  return useQuery(key, async () => liveStreamUrl(channel!, await loginFor(playlist!), 'ts'));
+  const { streamFormat } = usePrefs();
+  const key = playlist && channel ? `${playlist.id}|${playlist.syncedAt ?? 0}|${channel.id}|${streamFormat}` : null;
+  return useQuery(key, async () => liveStreamUrl(channel!, await loginFor(playlist!), streamFormat));
 }
 
 /** `value`, but only after it stopped changing for `ms`. */

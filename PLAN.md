@@ -128,6 +128,12 @@ Two ways in, both showing only programmes that really have a replay:
 
 ### 8. Basic settings
 - Playlists (add, edit, delete, switch), language (EN/DE/HR), EPG time offset, 12h/24h time format, stream format TS or HLS, clear cache, about.
+- Done as:
+  - Settings order: Playlists, Language, Playback, TV guide (offset, 12h/24h, refresh), Storage, About.
+  - Language: "Same as device" (default) or English / Deutsch / Hrvatski; saved in prefs, the whole app switches at once.
+  - Stream format: MPEG-TS (default) or HLS for live TV and catch-up URLs. Movies and episodes keep their own file type.
+  - Clear cache: deletes the stored TV guide and now/next cache; playlists, favourites and progress stay. There is no image cache of our own to clear (images use the system cache). The guide downloads again next time it is needed.
+  - About: app name, version from app.json, and a line that Plumcast contains no channels or content.
 
 ### 9. Android, Android TV and Fire TV polish
 - Android TV: launcher banner (320×180), Leanback launcher, no touchscreen required.

@@ -90,6 +90,14 @@ async function loadProgrammes(playlist: Playlist, channelId: string): Promise<Pr
   return upcomingByChannel(playlist.id, channelId, Date.now() - 6 * 3_600_000);
 }
 
+/** Drops all cached now/next (Settings → Clear cache). */
+export function clearProgrammeCache() {
+  for (const key of [...cache.keys()]) {
+    cache.delete(key);
+    notify(key);
+  }
+}
+
 /** Drops cached programmes of a playlist (its guide was just downloaded again). */
 export function invalidateProgrammes(playlistId: number) {
   for (const key of [...cache.keys()]) {

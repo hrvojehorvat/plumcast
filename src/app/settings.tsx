@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { SpatialNavigationView } from 'react-tv-space-navigation';
 import { activePlaylist, usePlaylists } from '../data/store';
+import { LanguageSettings, PlaybackSettings, StorageAndAbout } from '../settings/AppSettings';
 import { GuideSettings } from '../settings/GuideSettings';
 import { Button } from '../ui/Button';
 import { Focusable } from '../ui/Focusable';
@@ -40,8 +41,11 @@ export default function Settings() {
       <Row>
         <Button variant={list.length ? 'secondary' : 'primary'} icon="plus" label={t('playlist.add')} onPress={() => router.navigate('/playlists/add')} />
       </Row>
+      <LanguageSettings />
+      <PlaybackSettings />
       <Text weight="semibold" size={13} color={colors.textMuted} style={[styles.label, styles.section]}>{t('settings.guide').toUpperCase()}</Text>
       <GuideSettings playlist={activePlaylist(state)} />
+      <StorageAndAbout />
     </Screen>
   );
 }
