@@ -46,7 +46,8 @@
     "proxy": "node --env-file-if-exists=.env.local dev/proxy.mjs",
     "test": "vitest run",
     "lint": "oxlint src dev",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "demo": "node dev/demo-server.mjs"
   },
   "private": true
 }
