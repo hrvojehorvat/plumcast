@@ -70,19 +70,20 @@ Version 1 = watch live TV, use the TV guide, watch catch-up, movies and series. 
 - External XMLTV URL as an override when the provider's EPG is bad.
 
 ### 4. Catch-up (replays)
-Two ways in, both showing only programmes that really have a replay:
-- **From a channel** (Live TV → channel → Catch-up, or a past programme in the TV guide): day picker (archive depth = that channel's `tv_archive_duration` days), then the programme list, then play.
-- **Catch-up in the main navigation** (its own menu item / tab): all replayable programmes across all archive channels.
+Two ways in:
+- **From a channel** (Live TV → channel → Catch-up, or a past programme in the TV guide): day picker (replay window = that channel's `tv_archive_duration` days, or 7 days when the provider doesn't say), then the programme list, then play.
+- **Catch-up in the main navigation** (its own menu item / tab): replayable programmes across the whole list.
   - Grouped by country / category (the playlist's live categories), then channel, then day and programme.
   - Filter by day ("Today", "Yesterday", …) and a "Recently aired" view (newest first across all channels).
-  - Only channels with archive appear (`tv_archive=1` in Xtream, `catchup` attributes in M3U); categories without any archive channel are hidden.
-  - A programme is only listed if it already ended, lies within that channel's archive window, and has EPG data. Many channels in a list have no archive, so this is a subset of the guide.
-- Archive badge (↺) on channels and on past programmes that can be replayed; past programmes without archive show no badge and can't be played.
+  - Every channel the provider lists is shown, duplicates included. Never filter on the provider's archive flags (`tv_archive`, `tv_archive_duration`): they are unreliable, and channels without the flag often do have recordings. Whether a recording exists is left to the provider. M3U channels are the exception: they need `catchup` attributes, because the replay link is built from them.
+  - A programme is listed if it already ended, lies within the channel's replay window, and has EPG data (Xtream: `get_simple_data_table`, else the stored guide).
+  - When the channel's own link has no recording, a copy of the same channel in the list is tried (the provider sometimes records only one copy).
+- Archive badge (↺) on past programmes that can be replayed.
 - Builds the right URL:
   - Xtream `/timeshift/...`
   - M3U modes: `default`, `append`, `shift`, `flussonic`, `xc`
 - Navigation order (TV sidebar): Home, Live TV, Movies, Series, **Catch-up**, TV guide, a thin divider, then Search, Settings (tools, not watching). Phone tab bar: Home, Live, Movies, Series, More (More = Catch-up, TV guide, Search, Settings). TV guide on TV: categories in a left column (moving through them switches the channels on the right after a short pause), ▶ goes to the channels, ▲ from the grid reaches the day chips.
-- Data: needs EPG for the archive channels' past days (Xtream `get_simple_data_table` per channel, or the XMLTV feed), stored in SQLite and refreshed in the background.
+- Data: needs EPG for the channels' past days (Xtream `get_simple_data_table` per channel, or the XMLTV feed), stored in SQLite and refreshed in the background.
 - Seeking within the programme; "Go live" jumps back to the live channel.
 - Verified against your provider.
 
