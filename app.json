@@ -70,7 +70,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#0c0a12"
         }
-      ]
+      ],
+      "./plugins/withTvKeyDown"
     ],
     "scheme": "plumcast",
     "backgroundColor": "#0c0a12"
