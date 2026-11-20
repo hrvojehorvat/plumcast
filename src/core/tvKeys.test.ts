@@ -37,6 +37,18 @@ describe('createTvPressFilter', () => {
     expect(press({ eventType: 'longRight', eventKeyAction: 0 })).toBe('right');
   });
 
+  it('moves on for every repeat of a held arrow (native sends key-up + key-down every 150 ms)', () => {
+    let t = 1000;
+    const press = createTvPressFilter(() => t);
+    expect(press({ eventType: 'down', eventKeyAction: 0 })).toBe('down');
+    for (let i = 0; i < 5; i++) {
+      t += i === 0 ? 600 : 150;
+      expect(press({ eventType: 'down', eventKeyAction: 1 })).toBeNull();
+      expect(press({ eventType: 'down', eventKeyAction: 0 })).toBe('down');
+    }
+    expect(press({ eventType: 'down', eventKeyAction: 1 })).toBeNull();
+  });
+
   it('passes events without a key phase', () => {
     const press = createTvPressFilter();
     expect(press({ eventType: 'playPause', eventKeyAction: -1 })).toBe('playPause');
