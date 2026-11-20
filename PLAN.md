@@ -9,7 +9,7 @@ Each phase ends with something you can run and check (first in the browser, late
 ## Architecture
 
 ```
-apps/plumcast/
+plumcast/ (repo hrvojehorvat/plumcast)
   src/app/          expo-router screens only (home, live, guide, catchup, movies, series, search, settings, player)
   src/core/         pure TypeScript, no React: Xtream client, M3U parser, XMLTV parser, catch-up URL builders,
                     models, time/offset helpers. Unit-tested with vitest. This is where the bugs would hide.
@@ -25,7 +25,7 @@ apps/plumcast/
   - Full XMLTV (`xmltv.php` or the M3U `url-tvg`) in the background with a streaming parser, stored for N days.
 - **Focus / TV remote:** react-tv-space-navigation. It works the same on Android TV, Fire TV and web, so browser testing also tests D-pad navigation (arrow keys).
 - **TV build:** react-native-tvos + `@react-native-tvos/config-tv`. Phone and TV use one codebase and one APK.
-- **Design:** dark-first, glass, rounded cards, Inter, plum accent. The tokens are shared with the website (`.theme-purple`).
+- **Design:** dark-first, glass, rounded cards, Inter, plum accent. Palette, surfaces, radii and fonts come from `@mrvoje/design` (repo `hrvojehorvat/mrvoje-design`), the same tokens as the website's `.theme-purple`.
 
 ## Version 1 phases
 Version 1 = watch live TV, use the TV guide, watch catch-up, movies and series. Everything else waits for version 1.x.
@@ -154,12 +154,14 @@ Two ways in:
   - `npm run android` is now `expo run:android` (a dev build; Expo Go can't run the TV and video native modules). No local APK yet: not enough free disk for Gradle (~10 GB). The APK comes from Phase 10 (GitHub Actions).
 
 ### 10. Release pipeline
-- Started early: `.github/workflows/plumcast.yml` builds the APK on every push to the `plumcast` branch (Plumcast changes only) and on `plumcast-v*` tags (+ GitHub Release). Signed with the debug key until the `PLUMCAST_KEYSTORE_*` secrets exist. Still to do: real keystore, versionCode per release.
-- GitHub Actions: tag `plumcast-v1.2.3` → prebuild → Gradle release build.
+- `.github/workflows/apk.yml`: every push runs typecheck, lint and tests; a tag `v1.2.3` (= app.json version) builds the signed APK and a GitHub Release; Run workflow builds a test APK. versionCode comes from the version (`app.config.js`).
+- Until 1.0.0 the app lived in `apps/plumcast` of `hrvojehorvat/mrvoje` (tag `plumcast-v1.0.0` there); it moved to its own repo with its history.
+- GitHub Actions: tag `v1.2.3` → prebuild → Gradle release build.
 - APK for `arm64-v8a` + `armeabi-v7a`, signed with your keystore (kept in GitHub secrets) → GitHub Release with notes.
 - Free: public repo, no EAS needed.
 
 ### 11. Project page on mrvoje.com
+- Lives in the portfolio repo (`hrvojehorvat/mrvoje`), not here. Its download links point to this repo's `releases/latest`.
 - `/plumcast` in purple, and a second card on the portfolio.
 - Page content:
   - what it is and the features
@@ -182,7 +184,7 @@ Two ways in:
 - Amazon Appstore listing (free account).
 
 ## Notes
-- Test credentials only go in `apps/plumcast/.env.local` (gitignored).
+- Test credentials only go in `.env.local` (gitignored).
 - The signing keystore only goes in GitHub secrets.
 - Browser testing quirks:
   - Some codecs (AC3 audio, HEVC) play in the APK but not in the browser. That's expected.

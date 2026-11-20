@@ -3,7 +3,7 @@ import type { FetchLike } from '../core/http';
 import { normalizeServer } from '../core/xtream';
 
 /**
- * Development login from apps/plumcast/.env.local (gitignored). Only read in dev builds:
+ * Development login from .env.local (gitignored). Only read in dev builds:
  * `__DEV__` is false in release builds, so the minifier drops these values entirely.
  */
 export const DEV_LOGIN = __DEV__

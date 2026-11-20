@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-time: creates the Plumcast release signing key and stores it in the repo's GitHub secrets.
-# Run it yourself from the repo root:  bash apps/plumcast/scripts/release-keystore.sh
+# Run it yourself from the repo root:  bash scripts/release-keystore.sh
 # - The keystore is written OUTSIDE the repo (~/plumcast-signing/). Back it up together with the password
 #   (password manager). Lose either and you can never ship an update to installed apps again.
 # - Nothing secret is printed. The password is asked for twice and goes to the secrets via stdin.

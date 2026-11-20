@@ -12,7 +12,7 @@ const upstream = process.env.EXPO_PUBLIC_DEV_XTREAM_URL;
 const port = Number(process.env.EXPO_PUBLIC_DEV_PROXY_PORT || 8787);
 
 if (!upstream) {
-  console.error('Set EXPO_PUBLIC_DEV_XTREAM_URL in apps/plumcast/.env.local (see .env.example).');
+  console.error('Set EXPO_PUBLIC_DEV_XTREAM_URL in .env.local (see .env.example).');
   process.exit(1);
 }
 const base = new URL(upstream);

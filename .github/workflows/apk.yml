@@ -1,0 +1,142 @@
+name: Plumcast APK
+
+# - Every push / pull request: typecheck, lint, tests.
+# - Tag `v1.2.3` (must equal app.json expo.version): signed APK (phones, Android TV, Fire TV;
+#   armeabi-v7a + arm64-v8a in one file) + GitHub Release. Needs the PLUMCAST_KEYSTORE_* secrets.
+# - Actions → Plumcast APK → Run workflow: same build, APK attached to the run (debug-signed without the secrets).
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: plumcast-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  apk:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: 1
+      HAS_KEYSTORE: ${{ secrets.PLUMCAST_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Release checks
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(node -p "require('./app.json').expo.version")
+          [ "${GITHUB_REF_NAME#v}" = "$version" ] || { echo "::error::Tag $GITHUB_REF_NAME does not match app.json version $version"; exit 1; }
+          [ "$HAS_KEYSTORE" = true ] || { echo "::error::No release keystore (PLUMCAST_KEYSTORE_* secrets): releases are never signed with the debug key"; exit 1; }
+
+      - name: Install
+        run: npm ci
+
+      - name: Generate the Android project
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Use the release keystore
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.PLUMCAST_KEYSTORE_BASE64 }}
+        run: |
+          test -f android/app/build.gradle || { echo "::error::android/app/build.gradle not found (template changed?)"; exit 1; }
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/plumcast.keystore"
+          cat >> android/app/build.gradle <<'EOF'
+
+          android {
+              signingConfigs {
+                  plumcast {
+                      storeFile file(System.getenv('PLUMCAST_KEYSTORE_PATH'))
+                      storePassword System.getenv('PLUMCAST_KEYSTORE_PASSWORD')
+                      keyAlias System.getenv('PLUMCAST_KEY_ALIAS')
+                      keyPassword System.getenv('PLUMCAST_KEY_PASSWORD')
+                  }
+              }
+              buildTypes.release.signingConfig(signingConfigs.plumcast)
+          }
+          EOF
+
+      - name: Build the APK
+        working-directory: android
+        env:
+          PLUMCAST_KEYSTORE_PATH: ${{ runner.temp }}/plumcast.keystore
+          PLUMCAST_KEYSTORE_PASSWORD: ${{ secrets.PLUMCAST_KEYSTORE_PASSWORD }}
+          PLUMCAST_KEY_ALIAS: ${{ secrets.PLUMCAST_KEY_ALIAS }}
+          PLUMCAST_KEY_PASSWORD: ${{ secrets.PLUMCAST_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Name the APK
+        id: apk
+        run: |
+          version=$(node -p "require('./app.json').expo.version")
+          name="plumcast-${version}.apk"
+          mv android/app/build/outputs/apk/release/app-release.apk "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Built $name ($(du -h "$name" | cut -f1)), signed with $([ "$HAS_KEYSTORE" = true ] && echo 'the release keystore' || echo 'the debug key')" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.name }}
+          if-no-files-found: error
+
+      # plumcast.apk (fixed name) keeps github.com/hrvojehorvat/plumcast/releases/latest/download/plumcast.apk working for every version.
+      - name: Release files
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          cp "${{ steps.apk.outputs.name }}" plumcast.apk
+          cat > release-notes.md <<'EOF'
+          Plumcast for Android phones, Android TV and Amazon Fire TV (Fire OS 6 or newer). One APK for 32- and 64-bit devices.
+
+          **Install**
+          - Phone / Android TV: download `plumcast.apk` and open it (allow installing from this source when asked).
+          - Fire TV: Settings → My Fire TV → Developer options → turn on *Apps from Unknown Sources* (or allow the Downloader app). In the free **Downloader** app, enter `mrvoje.com/plumcast.apk`.
+
+          Plumcast is a player only: it ships no channels, playlists or content. Use it with a playlist you are entitled to.
+          EOF
+
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Plumcast ${{ steps.apk.outputs.version }}
+          body_path: release-notes.md
+          make_latest: true
+          files: |
+            plumcast.apk
+            ${{ steps.apk.outputs.name }}
