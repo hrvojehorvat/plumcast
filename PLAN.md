@@ -144,7 +144,7 @@ Two ways in, both showing only programmes that really have a replay:
 - Performance on 32-bit Fire Sticks (`armeabi-v7a`): virtualized lists, image cache.
 - Test on an emulator plus your real devices; local APK build.
 - Done as:
-  - Icons: real Plumcast icon (purple gradient + white play mark) replaces the Expo template: `icon.png`, adaptive icon (gradient background, play mark inside the safe zone, monochrome for themed icons), `favicon.png`. Android TV banner `assets/tv-banner.png` (320×180, mark + wordmark on the dark background) via config-tv `androidTVBanner`. Fire TV takes its banner from the store listing, not the APK.
+  - Icons: real Plumcast icon (chosen from 6 options: a purple plum with a green leaf and a white play mark, on a dark tile; the in-app logo matches) replaces the Expo template: `icon.png`, adaptive icon (gradient background, play mark inside the safe zone, monochrome for themed icons), `favicon.png`. Android TV banner `assets/tv-banner.png` (320×180, mark + wordmark on the dark background) via config-tv `androidTVBanner`. Fire TV takes its banner from the store listing, not the APK.
   - Splash: `expo-splash-screen`, small logo on `#0c0a12`; `expo-system-ui` keeps the root dark (no white flash).
   - Manifest (checked with `expo prebuild`): leanback + touchscreen + faketouch `required=false`, LEANBACK_LAUNCHER, banner, `usesCleartextTraffic=true` (via `expo-build-properties`). Storage permissions blocked (the file picker uses the system picker). Native code only for `armeabi-v7a` + `arm64-v8a`.
   - Back key: player and dialogs first, then detail pages (back to their list); on a main section Back goes Home (phone: the "More" sections go back to More); on Home it leaves the app. Switching sections uses `replace`, so the menu opening pages on focus doesn't fill the history.
@@ -153,6 +153,7 @@ Two ways in, both showing only programmes that really have a replay:
   - `npm run android` is now `expo run:android` (a dev build; Expo Go can't run the TV and video native modules). No local APK yet: not enough free disk for Gradle (~10 GB). The APK comes from Phase 10 (GitHub Actions).
 
 ### 10. Release pipeline
+- Started early: `.github/workflows/plumcast.yml` builds the APK on every push to the `plumcast` branch (Plumcast changes only) and on `plumcast-v*` tags (+ GitHub Release). Signed with the debug key until the `PLUMCAST_KEYSTORE_*` secrets exist. Still to do: real keystore, versionCode per release.
 - GitHub Actions: tag `plumcast-v1.2.3` → prebuild → Gradle release build.
 - APK for `arm64-v8a` + `armeabi-v7a`, signed with your keystore (kept in GitHub secrets) → GitHub Release with notes.
 - Free: public repo, no EAS needed.

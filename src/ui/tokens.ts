@@ -34,8 +34,11 @@ export const colors = {
   border: 'rgba(255,255,255,0.07)',
   focusRing: '#ffffff',
   live: '#e03131',
-  logoFrom: '#cf9bf5',
-  logoTo: '#7a35b5',
+  logoFrom: '#c58cf0',
+  logoTo: '#6a2aa3',
+  logoTile: '#1a1424',
+  logoStem: '#b98ad8',
+  logoLeaf: '#8fdc9c',
 } as const;
 
 export const radius = { sm: 10, md: 14, lg: 18, pill: 999 } as const;
