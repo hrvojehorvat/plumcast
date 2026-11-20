@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
   title: { letterSpacing: -1 },
   inlineButton: { flexDirection: 'row' },
   wide: { flex: 1, flexDirection: 'row', gap: tv.gap, paddingHorizontal: tv.padX, paddingTop: tv.padTop, paddingBottom: tv.padBottom, backgroundColor: colors.bg },
-  side: { width: tv.side, gap: 10 },
+  side: { flexBasis: tv.side, flexShrink: 1, minWidth: tv.sideMin, gap: 10 },
   listFill: { flex: 1, minHeight: 0, overflow: 'hidden' },
   categorySelected: { backgroundColor: colors.accentSoft },
   main: { flex: 1, minWidth: 0, gap: 8, paddingTop: 2 },

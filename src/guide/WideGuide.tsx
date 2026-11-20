@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   cellTime: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   root: { flex: 1, flexDirection: 'row', gap: tv.gap, paddingHorizontal: tv.padX, paddingTop: tv.padTop, paddingBottom: tv.padBottom, backgroundColor: colors.bg },
-  side: { width: tv.side, gap: 10 },
+  side: { flexBasis: tv.side, flexShrink: 1, minWidth: tv.sideMin, gap: 10 },
   title: { letterSpacing: -1 },
   status: { lineHeight: 15 },
   listFill: { flex: 1, minHeight: 0, overflow: 'hidden' },

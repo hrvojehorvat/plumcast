@@ -13,11 +13,19 @@
 //      the app's navigation), scroll lists by itself, or click a button natively (a second action per OK).
 //    - Typing: while a text field has focus, keys go to it and the keyboard as usual. Once the keyboard is
 //      closed, an arrow or Back leaves the field (it would otherwise keep the navigation locked).
+//    - A key held down repeats; repeats in the first HOLD_MS are dropped (a firm or bouncy press would
+//      otherwise count twice and skip a column). Held longer, a direction moves on.
 //    Back, Home, volume and power keep Android's handling (Back reaches JS through BackHandler).
+//
+// 3. MainActivity, on TVs only: the app is laid out on a screen 960 points wide, whatever density the TV
+//    reports. TVs differ (a 1080p TV can report 960 or 640 points), and the TV layout is sized for 960
+//    (src/ui/tokens.ts `tv`); at 640 the columns don't fit. React Native reads the density from its
+//    DisplayMetricsHolder (layout, text) and from the resources (root surface, Dimensions): both are set.
 const { withMainActivity, withMainApplication } = require('expo/config-plugins');
 
 const KEY_DOWN = 'com.facebook.react.config.ReactFeatureFlags.enableKeyDownEvents = true';
 const MARK = '// Plumcast TV remote';
+const HOLD_MS = 600;
 const ACTIVITY_CODE = `
   ${MARK} (see plugins/withTvRemote.js).
   private val plumcastIsTv: Boolean by lazy {
@@ -27,6 +35,38 @@ const ACTIVITY_CODE = `
       packageManager.hasSystemFeature("amazon.hardware.fire_tv")
   }
   private var plumcastRoot: java.lang.ref.WeakReference<android.view.View>? = null
+
+  /** Lays the app out on a 960-point-wide screen (TV only, see plugins/withTvRemote.js). */
+  @Suppress("DEPRECATION")
+  private fun plumcastFitDensity() {
+    if (!plumcastIsTv) return
+    try {
+      val screen = android.util.DisplayMetrics()
+      windowManager.defaultDisplay.getRealMetrics(screen)
+      val width = maxOf(screen.widthPixels, screen.heightPixels)
+      if (width <= 0) return
+      val density = width / 960f
+      val fontScale = resources.configuration.fontScale
+      for (m in listOf(screen, resources.displayMetrics, application.resources.displayMetrics)) {
+        m.density = density
+        m.densityDpi = Math.round(density * 160)
+        m.scaledDensity = density * fontScale
+      }
+      com.facebook.react.uimanager.DisplayMetricsHolder.setScreenDisplayMetrics(screen)
+    } catch (e: Exception) {
+      android.util.Log.w("Plumcast", "Could not fit the TV layout", e)
+    }
+  }
+
+  override fun onResume() {
+    plumcastFitDensity()
+    super.onResume()
+  }
+
+  override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+    plumcastFitDensity()
+    super.onConfigurationChanged(newConfig)
+  }
 
   private fun plumcastFindRoot(view: android.view.View): android.view.View? {
     if (view is com.facebook.react.ReactRootView) return view
@@ -46,6 +86,8 @@ const ACTIVITY_CODE = `
     plumcastRoot = java.lang.ref.WeakReference(root)
     return root
   }
+
+  private val PLUMCAST_HOLD_MS = ${HOLD_MS}L
 
   private fun plumcastIsRemoteKey(code: Int): Boolean = when (code) {
     android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN,
@@ -106,6 +148,8 @@ const ACTIVITY_CODE = `
 
     if (!plumcastIsRemoteKey(code)) return super.dispatchKeyEvent(event)
     if (focused !== root) root.requestFocus()
+    // A held key repeats: drop the repeats of a normal (firm, bouncy) press, keep a deliberate hold.
+    if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount > 0 && event.eventTime - event.downTime < PLUMCAST_HOLD_MS) return true
     if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0) onUserInteraction()
     root.dispatchKeyEvent(event)
     return true
@@ -130,10 +174,13 @@ module.exports = function withTvRemote(config) {
     requireKotlin(mod, 'MainActivity');
     const src = mod.modResults.contents;
     if (src.includes(MARK)) return mod;
-    if (/fun (dispatchKeyEvent|onWindowFocusChanged)\(/.test(src)) throw new Error('withTvRemote: MainActivity already overrides key or focus handling');
-    const end = src.lastIndexOf('}');
+    if (/fun (dispatchKeyEvent|onWindowFocusChanged|onResume|onConfigurationChanged)\(/.test(src)) throw new Error('withTvRemote: MainActivity already overrides key, focus, resume or configuration handling');
+    // The density is fitted before React Native starts (super.onCreate).
+    const withFit = src.replace(/(\n(\s*)super\.onCreate\()/, '\n$2plumcastFitDensity()$1');
+    if (withFit === src) throw new Error('withTvRemote: super.onCreate() not found in MainActivity.kt');
+    const end = withFit.lastIndexOf('}');
     if (end < 0) throw new Error('withTvRemote: MainActivity class not found');
-    mod.modResults.contents = src.slice(0, end) + ACTIVITY_CODE + src.slice(end);
+    mod.modResults.contents = withFit.slice(0, end) + ACTIVITY_CODE + withFit.slice(end);
     return mod;
   });
 };

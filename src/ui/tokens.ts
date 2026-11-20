@@ -63,8 +63,11 @@ export const tv = {
   padBottom: 12,
   /** Gap between columns. */
   gap: 14,
-  /** Left column (categories). */
+  /** Left column (categories); on a narrower screen it shrinks down to sideMin. */
   side: 190,
+  sideMin: 130,
+  /** Narrowest a list column (channels, …) may get, so it never collapses. */
+  listMin: 200,
   /** Page title (Live TV, Movies, …). */
   title: 22,
   /** Column heading (category name). */
