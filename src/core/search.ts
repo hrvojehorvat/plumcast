@@ -22,3 +22,27 @@ export function foldSearch(text: string): string {
 export function likeContains(query: string): string {
   return `%${foldSearch(query).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
+
+/** Shortest query the full search runs for (one letter would match half the catalog). */
+export const SEARCH_MIN = 2;
+
+export const isSearchable = (query: string): boolean => foldSearch(query).length >= SEARCH_MIN;
+
+/** Recent searches: newest first, no duplicates (ignoring case and accents), at most `max`. */
+export function rememberSearch(list: readonly string[], query: string, max = 8): string[] {
+  const text = query.replace(/\s+/g, ' ').trim();
+  if (!isSearchable(text)) return [...list];
+  const key = foldSearch(text);
+  return [text, ...list.filter((q) => foldSearch(q) !== key)].slice(0, max);
+}
+
+/** Found programmes in the order people want them: on now, then coming up (soonest first), then past (newest first). */
+export function orderProgrammeHits<T extends { programme: { start: number; end: number } }>(hits: readonly T[], now: number): T[] {
+  const group = (h: T) => (h.programme.start <= now && now < h.programme.end ? 0 : h.programme.start > now ? 1 : 2);
+  return [...hits].sort((a, b) => {
+    const ga = group(a);
+    const gb = group(b);
+    if (ga !== gb) return ga - gb;
+    return ga === 2 ? b.programme.start - a.programme.start : a.programme.start - b.programme.start;
+  });
+}

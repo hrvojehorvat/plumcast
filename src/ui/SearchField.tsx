@@ -11,12 +11,15 @@ export function SearchField({
   onChangeText,
   placeholder,
   onFocus,
+  onSubmit,
 }: {
   value: string;
   onChangeText: (text: string) => void;
   placeholder: string;
   /** Remote focus arrived on the box. */
   onFocus?: () => void;
+  /** The keyboard's search / done key. */
+  onSubmit?: () => void;
 }) {
   const ref = useRef<ComponentRef<typeof TextInput>>(null);
   const [editing, setEditing] = useState(false);
@@ -45,7 +48,10 @@ export function SearchField({
               setEditing(false);
               unlock();
             }}
-            onSubmitEditing={() => ref.current?.blur()}
+            onSubmitEditing={() => {
+              onSubmit?.();
+              ref.current?.blur();
+            }}
             style={styles.input}
           />
           {value ? (

@@ -116,7 +116,7 @@ export async function countSeriesLists(playlistId: number): Promise<{ favorites:
 }
 
 /** Series of one category (or a built-in list), optionally filtered by a search text inside it. */
-export async function listSeries(playlistId: number, categoryId: string, query = '', sort: SeriesSort = 'recent'): Promise<SeriesItem[]> {
+export async function listSeries(playlistId: number, categoryId: string, query = '', sort: SeriesSort = 'recent', limit?: number): Promise<SeriesItem[]> {
   const db = await getDb();
   const params: (string | number)[] = [playlistId];
   let where = 's.playlist_id = ?';
@@ -133,7 +133,7 @@ export async function listSeries(playlistId: number, categoryId: string, query =
     where += ` AND s.search LIKE ? ESCAPE '\\'`;
     params.push(likeContains(query));
   }
-  const rows = await db.getAllAsync<SeriesRow>(`SELECT ${COLUMNS} FROM series s ${JOINS} WHERE ${where} ORDER BY ${order}`, ...params);
+  const rows = await db.getAllAsync<SeriesRow>(`SELECT ${COLUMNS} FROM series s ${JOINS} WHERE ${where} ORDER BY ${order}${limit ? ` LIMIT ${Math.floor(limit)}` : ''}`, ...params);
   return rows.map(toSeries);
 }
 

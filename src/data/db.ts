@@ -1,6 +1,6 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 let dbPromise: Promise<SQLiteDatabase> | null = null;
 
@@ -208,6 +208,15 @@ async function migrate(db: SQLiteDatabase) {
           PRIMARY KEY (playlist_id, series_id)
         );
         CREATE INDEX series_progress_recent ON series_progress (playlist_id, updated_at);
+      `);
+    }
+    if (version < 6) {
+      // Full search: programme titles folded like channel names (old rows get a plain lower-case
+      // copy until the next guide update), and channels found by their guide id.
+      await db.execAsync(`
+        ALTER TABLE epg ADD COLUMN search TEXT NOT NULL DEFAULT '';
+        UPDATE epg SET search = lower(title);
+        CREATE INDEX live_by_epg ON live (playlist_id, lower(epg_id));
       `);
     }
     await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);

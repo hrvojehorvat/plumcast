@@ -140,7 +140,7 @@ const NOT_HIDDEN = `(l.category_id IS NULL OR l.category_id NOT IN
  * Channels of one category (or a built-in list), optionally filtered by a search text.
  * The search only looks inside that list, which keeps it fast on big playlists.
  */
-export async function listChannels(playlistId: number, categoryId: string, query = '', archiveOnly = false): Promise<Channel[]> {
+export async function listChannels(playlistId: number, categoryId: string, query = '', archiveOnly = false, limit?: number): Promise<Channel[]> {
   const db = await getDb();
   const params: (string | number)[] = [playlistId];
   let join = FAV_JOIN;
@@ -162,7 +162,7 @@ export async function listChannels(playlistId: number, categoryId: string, query
     where += ` AND l.search LIKE ? ESCAPE '\\'`;
     params.push(likeContains(query));
   }
-  const rows = await db.getAllAsync<ChannelRow>(`SELECT ${CHANNEL_COLUMNS} FROM live l ${join} WHERE ${where} ORDER BY ${order}`, ...params);
+  const rows = await db.getAllAsync<ChannelRow>(`SELECT ${CHANNEL_COLUMNS} FROM live l ${join} WHERE ${where} ORDER BY ${order}${limit ? ` LIMIT ${Math.floor(limit)}` : ''}`, ...params);
   return rows.map(toChannel);
 }
 
@@ -221,6 +221,30 @@ export async function recentlyAired(playlistId: number, categoryId: string, from
       ORDER BY e.stop DESC, l.sort
       LIMIT ${limit}`,
     ...params,
+  );
+  return rows.map((r) => ({ channel: toChannel(r), programme: { start: r.p_start, end: r.p_stop, title: r.p_title, description: r.p_description } }));
+}
+
+/**
+ * Full search in the stored guide: programmes in [from, to) whose title contains `query`, closest
+ * to `around` first, each with the first visible channel that carries it (duplicates collapse).
+ * CROSS JOIN keeps the matched programmes as the outer loop; otherwise SQLite may rerun the
+ * programme scan once per channel (minutes on a real playlist).
+ */
+export async function searchProgrammes(playlistId: number, query: string, from: number, to: number, around: number, limit = 120): Promise<AiredItem[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<ChannelRow & { p_start: number; p_stop: number; p_title: string; p_description: string | null }>(
+    `SELECT ${CHANNEL_COLUMNS}, e.start AS p_start, e.stop AS p_stop, e.title AS p_title, e.description AS p_description, MIN(l.sort) AS first_sort
+       FROM (SELECT channel, start, stop, title, description FROM epg
+              WHERE playlist_id = ? AND stop > ? AND start < ? AND search LIKE ? ESCAPE '\\'
+              ORDER BY abs(start - ?) LIMIT ${Math.floor(limit) * 3}) e
+       CROSS JOIN live l ON l.playlist_id = ? AND lower(l.epg_id) = e.channel
+       ${FAV_JOIN}
+      WHERE ${NOT_HIDDEN}
+      GROUP BY e.channel, e.start
+      ORDER BY abs(e.start - ?)
+      LIMIT ${Math.floor(limit)}`,
+    playlistId, from, to, likeContains(query), around, playlistId, around,
   );
   return rows.map((r) => ({ channel: toChannel(r), programme: { start: r.p_start, end: r.p_stop, title: r.p_title, description: r.p_description } }));
 }

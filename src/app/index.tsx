@@ -1,19 +1,28 @@
 import { router } from 'expo-router';
+import { POSTER_TEXT } from '../catalog/Poster';
 import { StyleSheet, View } from 'react-native';
 import { DefaultFocus } from 'react-tv-space-navigation';
 import { ago, formatDate, formatNumber } from '../core/format';
 import { canRefresh } from '../core/playlistForm';
 import type { Playlist } from '../data/playlists';
 import { activePlaylist, playlists, usePlaylists } from '../data/store';
+import { QuickLinks } from '../home/QuickLinks';
+import { useHomeRows } from '../home/useHome';
+import { ChannelTile, tileHeight } from '../live/ChannelTile';
+import { MoviePoster } from '../movies/Poster';
+import { livePlayer } from '../player/store';
+import { SeriesPoster } from '../series/SeriesPoster';
 import { Button } from '../ui/Button';
 import { errorText } from '../ui/errorText';
 import { useI18n } from '../ui/i18n';
 import { Icon } from '../ui/Icon';
 import { LogoMark, Wordmark } from '../ui/Logo';
 import { Card, Row, Screen } from '../ui/Screen';
+import { Shelf } from '../ui/Shelf';
 import { SyncProgressBar } from '../ui/SyncProgressBar';
 import { Text } from '../ui/Text';
 import { colors, radius } from '../ui/tokens';
+import { useWideLayout } from '../ui/useWideLayout';
 
 export default function Home() {
   const { t } = useI18n();
@@ -60,10 +69,65 @@ export default function Home() {
     );
   }
 
-  const others = state.list.filter((p) => p.id !== active.id);
+  return <ActiveHome playlist={active} others={state.list.filter((p) => p.id !== active.id)} />;
+}
+
+/** The main sections, rows to pick up from (continue watching, favourite channels, what's new), then the playlist. */
+function ActiveHome({ playlist, others }: { playlist: Playlist; others: Playlist[] }) {
+  const { t } = useI18n();
+  const wide = useWideLayout();
+  const rows = useHomeRows(playlist);
+  // Wait for the rows, so the screen doesn't jump and the remote focus lands on the first section.
+  if (!rows) return <Screen title={t('nav.home')} />;
+
+  const poster = wide ? 150 : 112;
+  const posterHeight = Math.round(poster * 1.5) + POSTER_TEXT;
+  const tile = wide ? 220 : 168;
+  const openMovie = (id: string) => router.push(`/movies/${encodeURIComponent(id)}`);
+  const openSeries = (id: string) => router.push(`/series/${encodeURIComponent(id)}`);
+
   return (
     <Screen title={t('nav.home')}>
-      <PlaylistCard playlist={active} />
+      <QuickLinks playlist={playlist} />
+      {rows.continuing.length ? (
+        <Shelf
+          title={t('home.continue')}
+          items={rows.continuing}
+          height={posterHeight}
+         
+          keyOf={(c) => (c.kind === 'movie' ? `m:${c.movie.id}` : `s:${c.series.id}`)}
+          labelOf={(c) => (c.kind === 'movie' ? c.movie.name : c.series.name)}
+          onSelect={(c) => (c.kind === 'movie' ? openMovie(c.movie.id) : openSeries(c.series.id))}
+        >
+          {(c, focused) => (c.kind === 'movie' ? <MoviePoster movie={c.movie} width={poster} focused={focused} /> : <SeriesPoster series={c.series} width={poster} focused={focused} />)}
+        </Shelf>
+      ) : null}
+      {rows.channels.length ? (
+        <Shelf
+          title={t('home.favorites')}
+          items={rows.channels}
+          height={tileHeight(tile)}
+         
+          keyOf={(c) => c.id}
+          labelOf={(c) => c.name}
+          onSelect={(c) => livePlayer.open(playlist.id, rows.channels, c)}
+        >
+          {(c, focused) => <ChannelTile channel={c} playlist={playlist} width={tile} focused={focused} />}
+        </Shelf>
+      ) : null}
+      {rows.movies.length ? (
+        <Shelf title={t('home.newMovies')} items={rows.movies} height={posterHeight} keyOf={(m) => m.id} labelOf={(m) => m.name} onSelect={(m) => openMovie(m.id)}>
+          {(m, focused) => <MoviePoster movie={m} width={poster} focused={focused} />}
+        </Shelf>
+      ) : null}
+      {rows.series.length ? (
+        <Shelf title={t('home.newSeries')} items={rows.series} height={posterHeight} keyOf={(s) => s.id} labelOf={(s) => s.name} onSelect={(s) => openSeries(s.id)}>
+          {(s, focused) => <SeriesPoster series={s} width={poster} focused={focused} />}
+        </Shelf>
+      ) : null}
+
+      <Text weight="semibold" size={13} color={colors.textMuted} style={styles.label}>{t('home.playlist').toUpperCase()}</Text>
+      <PlaylistCard playlist={playlist} />
       {others.length ? (
         <>
           <Text weight="semibold" size={13} color={colors.textMuted} style={styles.label}>{t('home.switch').toUpperCase()}</Text>

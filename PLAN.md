@@ -117,6 +117,14 @@ Two ways in, both showing only programmes that really have a replay:
   - **Search inside a category:** in Live TV, Movies, Series and Catch-up, the search field searches only the category that's selected (e.g. Movies → "Action", or Catch-up → "Germany"). Smaller set, so results are instant. With "All" selected, it searches that whole section.
   - Search-as-you-type with a short debounce; an on-screen keyboard that works with the TV remote; recent searches.
 - Favorites for each type.
+- Done as:
+  - Home shows the rows above (only those that have items; "Recently updated series", since providers report the last update, not when it was added), then the active playlist card and the other playlists. The remote focus starts on the first row's first card.
+  - Full search uses LIKE on folded text (no accents, lower case), not FTS5: the sets are small enough and it matches inside words ("sport" finds "Eurosport"). Up to 40 results per type. The TV guide part covers ±7 days; past programmes appear only if they can be replayed. Order: on now, upcoming (soonest first), past (newest first).
+  - DB schema v6: `epg.search` (folded title) and an index on `live (playlist_id, lower(epg_id))`. The programme search uses a CROSS JOIN so SQLite scans the guide once, not once per channel (that took minutes).
+  - The keyboard is the system one (Android TV / Fire TV IME), opened with OK on the field; no custom on-screen keyboard.
+  - Recent searches (8, newest first) are saved when you press Enter or open a result; they show under the empty field.
+  - Home starts with four tiles (Live TV, Movies, Series, Catch-up, with counts); the remote focus starts on Live TV.
+  - TV guide download: tries the user's own link first, then the provider's; a refused or failed download is retried twice (after 3 s and 10 s), then again 3 minutes later. A refusal is shown as the provider's hiccup, never "wrong password" (the login works, the channels load). With an older guide stored, it stays visible with a small "update failed" note.
 
 ### 8. Basic settings
 - Playlists (add, edit, delete, switch), language (EN/DE/HR), EPG time offset, 12h/24h time format, stream format TS or HLS, clear cache, about.

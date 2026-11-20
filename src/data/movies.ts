@@ -113,7 +113,7 @@ export async function countMovieLists(playlistId: number): Promise<{ favorites: 
 }
 
 /** Movies of one category (or a built-in list), optionally filtered by a search text inside it. */
-export async function listMovies(playlistId: number, categoryId: string, query = '', sort: MovieSort = 'recent'): Promise<MovieItem[]> {
+export async function listMovies(playlistId: number, categoryId: string, query = '', sort: MovieSort = 'recent', limit?: number): Promise<MovieItem[]> {
   const db = await getDb();
   const params: (string | number)[] = [playlistId];
   let where = 'm.playlist_id = ?';
@@ -130,7 +130,7 @@ export async function listMovies(playlistId: number, categoryId: string, query =
     where += ` AND m.search LIKE ? ESCAPE '\\'`;
     params.push(likeContains(query));
   }
-  const rows = await db.getAllAsync<MovieRow>(`SELECT ${COLUMNS} FROM movies m ${JOINS} WHERE ${where} ORDER BY ${order}`, ...params);
+  const rows = await db.getAllAsync<MovieRow>(`SELECT ${COLUMNS} FROM movies m ${JOINS} WHERE ${where} ORDER BY ${order}${limit ? ` LIMIT ${Math.floor(limit)}` : ''}`, ...params);
   return rows.map(toMovie);
 }
 

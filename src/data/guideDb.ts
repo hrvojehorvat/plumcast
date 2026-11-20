@@ -1,4 +1,5 @@
 import type { Programme } from '../core/epg';
+import { foldSearch } from '../core/search';
 import { getDb, getSetting, insertMany, setSetting } from './db';
 
 /** Stored TV guide (XMLTV) programmes. Channel ids are kept lower-case; lookups lower-case too. */
@@ -54,7 +55,7 @@ export async function saveGuide(playlistId: number, rows: readonly GuideRow[], n
   }
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM epg WHERE playlist_id = ?', playlistId);
-    await insertMany(db, 'epg', ['playlist_id', 'channel', 'start', 'stop', 'title', 'description'], rows.map((r) => [playlistId, ...r]));
+    await insertMany(db, 'epg', ['playlist_id', 'channel', 'start', 'stop', 'title', 'description', 'search'], rows.map((r) => [playlistId, ...r, foldSearch(r[3])]));
   });
   const status: GuideStatus = { fetchedAt: now, count: rows.length, first, last };
   await setSetting(`guide:${playlistId}`, JSON.stringify(status));

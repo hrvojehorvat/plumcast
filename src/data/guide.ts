@@ -17,13 +17,15 @@ import { loginFor } from './session';
  */
 
 export const GUIDE_FRESH_MS = 12 * 60 * 60_000;
-const RETRY_FAILED_MS = 10 * 60_000;
+const RETRY_FAILED_MS = 3 * 60_000;
+/** Providers sometimes refuse the guide for a moment (busy, rate limit): try again after these pauses. */
+const RETRY_DELAYS_MS = [3_000, 10_000];
 const KEEP_BACK_MS = 8 * 24 * 60 * 60_000;
 const KEEP_AHEAD_MS = 14 * 24 * 60 * 60_000;
 /** No data for this long = give up. */
 const IDLE_TIMEOUT_MS = 60_000;
 
-export type GuideProblem = 'no-source' | 'no-match' | PlaylistError['code'];
+export type GuideProblem = 'no-source' | 'no-login' | 'no-match' | PlaylistError['code'];
 
 export interface GuideState {
   /** Stored status per playlist (undefined = not read yet, null = never loaded). */
@@ -51,15 +53,18 @@ export function useGuideState(): GuideState {
   return useSyncExternalStore(subscribe, () => state, () => state);
 }
 
-/** Where this playlist's guide comes from, or null when it has none. Never stored in SQLite (may contain a login). */
-export async function guideLink(playlist: Playlist): Promise<string | null> {
+/**
+ * Where this playlist's guide comes from, best first: the user's own link, then the provider's
+ * (Xtream `xmltv.php`, M3U `url-tvg`). Never stored in SQLite (may contain a login).
+ */
+async function guideLinks(playlist: Playlist): Promise<string[]> {
   const secret = await readSecret(playlist.id);
-  if (secret.guideOverride) return secret.guideOverride;
+  let own: string | null = secret.guideUrl || null;
   if (playlist.kind === 'xtream') {
     const login = await loginFor(playlist);
-    return login ? xmltvUrl(login) : null;
+    own = login ? xmltvUrl(login) : null;
   }
-  return secret.guideUrl || null;
+  return [...new Set([secret.guideOverride, own].filter((l): l is string => !!l))];
 }
 
 /** True when the playlist has its own guide link set by the user. */
@@ -105,11 +110,11 @@ export async function syncGuide(playlist: Playlist) {
   const id = playlist.id;
   set({ syncing: { playlistId: id, phase: 'download', bytes: 0, programmes: 0 }, problem: { ...state.problem, [id]: undefined } });
   try {
-    const link = await guideLink(playlist);
-    if (!link) throw new GuideFailure('no-source');
+    const links = await guideLinks(playlist);
+    if (!links.length) throw new GuideFailure(playlist.kind === 'xtream' ? 'no-login' : 'no-source');
     const channels = await guideChannelIds(id);
     let received = 0;
-    const rows = await downloadGuide(link, channels, own.signal, (bytes, programmes) => {
+    const rows = await downloadWithRetries(links, channels, own.signal, (bytes, programmes) => {
       received = bytes;
       set({ syncing: { playlistId: id, phase: 'download', bytes, programmes } });
     });
@@ -134,6 +139,48 @@ class GuideFailure extends Error {
   constructor(readonly code: GuideProblem) {
     super(code);
   }
+}
+
+/** Tries each link, a refused or failed download again after a short pause, before giving up. */
+async function downloadWithRetries(
+  links: readonly string[],
+  channels: Set<string>,
+  signal: AbortSignal,
+  onProgress: (bytes: number, programmes: number) => void,
+): Promise<GuideRow[]> {
+  let last: unknown = null;
+  for (const link of links) {
+    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+      if (attempt) await pause(RETRY_DELAYS_MS[attempt - 1], signal);
+      try {
+        const rows = await downloadGuide(link, channels, signal, onProgress);
+        if (rows.length || link === links[links.length - 1]) return rows;
+        break; // this guide lists none of the channels: try the next link
+      } catch (error) {
+        if (signal.aborted) throw new PlaylistError('cancelled');
+        console.warn('Plumcast guide download failed', toPlaylistError(error).code, `attempt ${attempt + 1}`);
+        last = error;
+        // A broken file won't get better by asking again: go to the next link.
+        if (toPlaylistError(error).code === 'format') break;
+      }
+    }
+  }
+  throw last ?? new GuideFailure('no-match');
+}
+
+function pause(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(done, ms);
+    function done() {
+      signal.removeEventListener('abort', stop);
+      resolve();
+    }
+    function stop() {
+      clearTimeout(timer);
+      reject(new PlaylistError('cancelled'));
+    }
+    signal.addEventListener('abort', stop, { once: true });
+  });
 }
 
 const streamFetch: typeof expoFetch = Platform.OS === 'web' ? (globalThis.fetch as unknown as typeof expoFetch) : expoFetch;

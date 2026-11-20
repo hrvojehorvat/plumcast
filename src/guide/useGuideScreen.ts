@@ -77,13 +77,22 @@ export function useGuideStatusLine(playlist: Playlist): { text: string; problem:
     return { text, problem: false, busy: true };
   }
   if (problem) {
+    const refused = problem.code === 'auth' || problem.code === 'http' || problem.code === 'network' || problem.code === 'timeout';
+    // An older guide is still stored and shown: say so quietly instead of a big error.
+    if (status && problem.code !== 'no-login') {
+      const a = ago(status.fetchedAt);
+      return { text: `${t('guide.updated', { when: t(a.key, { n: a.n }), n: status.count })} · ${t('guide.retrySoon')}`, problem: true, busy: false };
+    }
+    // The login works (the channels load), so a refused guide is the provider's hiccup, not a wrong password.
     const text = problem.code === 'no-source'
       ? t('guide.noSource')
-      : problem.code === 'no-match'
-        ? t('guide.noMatch')
-        : problem.code === 'http'
-          ? t('guide.failed')
-          : `${t('guide.failed')} ${t(`error.${problem.code}`)}`;
+      : problem.code === 'no-login'
+        ? t('guide.noLogin')
+        : problem.code === 'no-match'
+          ? t('guide.noMatch')
+          : refused
+            ? t('guide.refused')
+            : t('guide.failed');
     return { text, problem: true, busy: false };
   }
   if (status) {
