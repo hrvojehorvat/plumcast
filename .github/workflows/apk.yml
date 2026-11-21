@@ -11,8 +11,9 @@ on:
     branches: [main]
     tags: ['v*']
 
+# Read-only by default; only the apk job (which creates the release) may write.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: plumcast-${{ github.ref }}
@@ -35,6 +36,8 @@ jobs:
   apk:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     needs: check
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
