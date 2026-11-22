@@ -36,6 +36,7 @@ export const ICONS = {
   forward: 'M13 7l7 5-7 5zM4 7l7 5-7 5z',
   next: 'M5 5l10 7-10 7zM19 5v14',
   archive: 'M12 7v5l3 2M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5',
+  mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3M8 21h8',
 } as const;
 
 export type IconName = keyof typeof ICONS;

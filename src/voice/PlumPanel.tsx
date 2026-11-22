@@ -1,0 +1,280 @@
+import { useEffect, useState } from 'react';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { useLockSpatialNavigation } from 'react-tv-space-navigation';
+import { dayLabel } from '../catchup/useCatchup';
+import { formatDay } from '../core/format';
+import { dayStart } from '../core/guide';
+import type { MessageKey } from '../core/i18n';
+import type { PlumCommand } from '../core/voice';
+import type { PlumTarget } from '../data/voice';
+import { usePlayerKeys } from '../player/usePlayerKeys';
+import { useI18n } from '../ui/i18n';
+import { Icon, type IconName } from '../ui/Icon';
+import { Text } from '../ui/Text';
+import { colors, radius } from '../ui/tokens';
+import { useTimeFormat } from '../ui/useTimeFormat';
+import { plum } from './plum';
+import { usePlum, type PlumPhase } from './usePlum';
+
+/** Touch phones show no focus ring; TV and desktop (remote / keyboard) do. */
+const REMOTE = Platform.OS === 'web' || Platform.isTV;
+
+type T = ReturnType<typeof useI18n>['t'];
+
+interface Line {
+  icon: IconName;
+  title: string;
+  detail: string;
+}
+
+function useTargetLine(): (target: PlumTarget) => Line {
+  const { t, lang } = useI18n();
+  const time = useTimeFormat();
+  return (target) => {
+    switch (target.kind) {
+      case 'live':
+        return { icon: 'live', title: target.channel.name, detail: t('plum.liveNow') };
+      case 'catchup': {
+        const { start } = target.programme;
+        const day = dayLabel(dayStart(start), dayStart(Date.now()), t, (ms) => formatDay(ms, lang));
+        return { icon: 'catchup', title: target.programme.title, detail: `${target.channel.name} · ${day} ${time(start)}` };
+      }
+      case 'movie':
+        return { icon: 'movies', title: target.movie.name, detail: t('plum.movie') };
+      case 'series': {
+        const { season, episode } = target;
+        const detail =
+          season !== null && episode !== null ? t('plum.episode', { season, episode }) : season !== null ? t('plum.season', { season }) : t('plum.series');
+        return { icon: 'series', title: target.series.name, detail };
+      }
+    }
+  };
+}
+
+/** What a non-play command will do, in words. */
+function commandText(command: PlumCommand, t: T): string {
+  switch (command.kind) {
+    case 'open':
+      return t('plum.openScreen', { screen: t(`nav.${command.screen}` as MessageKey) });
+    case 'refresh-epg':
+      return t('plum.refreshGuide');
+    case 'search':
+      return t('plum.search', { query: command.query });
+    case 'play-that':
+      if (command.index === null) return t('plum.playThat');
+      return command.index < 0 ? t('plum.playLast') : t('plum.playNumber', { n: command.index });
+    case 'play':
+      return command.title;
+  }
+}
+
+/** Dev builds: what the rules understood, to tell a mishearing from a bad match. */
+function debugText(phase: PlumPhase): string | null {
+  if (!__DEV__ || !('heard' in phase)) return null;
+  const { text, command, confident } = phase.heard;
+  const parts = [`"${text}"`];
+  if (command?.kind === 'play') {
+    parts.push(`play "${command.title}"`);
+    if (command.when) parts.push(`day ${command.when.dayOffset ?? '?'} ${command.when.timeOfDay ?? ''} ${command.when.minutes !== null ? `${Math.floor(command.when.minutes / 60)}:${String(command.when.minutes % 60).padStart(2, '0')}` : ''}`.trim());
+    if (command.channel) parts.push(`on "${command.channel}"`);
+    if (command.prefer) parts.push(command.prefer);
+  } else if (command) parts.push(command.kind);
+  parts.push(confident ? 'confident' : 'unsure');
+  if (phase.kind === 'found') parts.push(phase.resolution.sure ? 'sure match' : 'ask');
+  return parts.join(' · ');
+}
+
+/**
+ * The Plum card: listens as soon as it opens, then shows what it understood and found.
+ * ▲▼ move through the found items, ◀▶ through the buttons, Back closes. Drawn above the
+ * current screen (like Dialog), so the screen keeps its place.
+ */
+export function PlumPanel() {
+  const { t } = useI18n();
+  const { phase, heard, listen, stop } = usePlum();
+  const line = useTargetLine();
+  const { lock, unlock } = useLockSpatialNavigation();
+  const candidates = phase.kind === 'found' ? phase.resolution.candidates : [];
+  // The remote focus inside the card; a new answer starts at its first item.
+  const [focus, setFocus] = useState({ phase, row: 0, button: 0 });
+  const { row, button } = focus.phase === phase ? focus : { row: 0, button: 0 };
+  const move = (change: { row?: (r: number) => number; button?: (b: number) => number }) =>
+    setFocus((prev) => {
+      const base = prev.phase === phase ? prev : { phase, row: 0, button: 0 };
+      return { phase, row: change.row ? change.row(base.row) : base.row, button: change.button ? change.button(base.button) : base.button };
+    });
+  const listening = phase.kind === 'listening';
+
+  useEffect(() => {
+    lock();
+    return () => unlock();
+  }, [lock, unlock]);
+
+  const buttons: { label: string; icon: IconName; onPress: () => void }[] = [
+    listening ? { label: t('plum.done'), icon: 'check', onPress: stop } : { label: t('plum.again'), icon: 'mic', onPress: listen },
+    { label: t('plum.close'), icon: 'close', onPress: plum.close },
+  ];
+  // Rows: the candidates, then the button row.
+  const onButtons = row >= candidates.length;
+
+  usePlayerKeys((key) => {
+    if (key === 'back') plum.close();
+    else if (key === 'up') move({ row: (r) => Math.max(0, r - 1) });
+    else if (key === 'down') move({ row: (r) => Math.min(candidates.length, r + 1) });
+    else if (key === 'left' && onButtons) move({ button: (b) => Math.max(0, b - 1) });
+    else if (key === 'right' && onButtons) move({ button: (b) => Math.min(buttons.length - 1, b + 1) });
+    else if (key === 'select') {
+      // Playing a found item comes in the next step; for now OK on an item listens again.
+      if (onButtons) buttons[button]?.onPress();
+      else listen();
+    }
+  });
+
+  const debug = debugText(phase);
+
+  return (
+    <View style={styles.backdrop}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={plum.close} accessibilityLabel={t('plum.close')} />
+      <View style={styles.card} accessibilityViewIsModal>
+        <View style={styles.header}>
+          <View style={[styles.mic, listening && styles.micOn]}>
+            <Icon name="mic" size={22} color={listening ? '#ffffff' : colors.accentLight} />
+          </View>
+          <Text weight="bold" size={20}>{t('plum.name')}</Text>
+        </View>
+
+        <Status phase={phase} heard={heard} t={t} />
+
+        {candidates.length ? (
+          <View style={styles.list}>
+            {phase.kind === 'found' && !phase.resolution.sure ? <Text size={14} color={colors.textFaint}>{t('plum.pick')}</Text> : null}
+            {candidates.map((target, i) => {
+              const { icon, title, detail } = line(target);
+              const on = REMOTE && !onButtons && i === row;
+              return (
+                <Pressable key={`${target.kind}-${i}`} onPress={listen} onHoverIn={() => move({ row: () => i })} style={[styles.item, on && styles.focused]} accessibilityRole="button" accessibilityLabel={title}>
+                  <Icon name={icon} size={20} color={i === 0 ? colors.accentLight : colors.textFaint} />
+                  <View style={styles.itemText}>
+                    <Text weight="semibold" size={16} numberOfLines={1}>{title}</Text>
+                    <Text size={13} color={colors.textFaint} numberOfLines={1}>{detail}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        {debug ? <Text size={12} color={colors.textFaint}>{debug}</Text> : null}
+
+        <View style={styles.actions}>
+          {buttons.map((b, i) => {
+            const on = REMOTE && onButtons && i === button;
+            const primary = i === 0;
+            const fg = primary ? '#ffffff' : colors.text;
+            return (
+              <Pressable
+                key={b.label}
+                accessibilityRole="button"
+                accessibilityLabel={b.label}
+                onPress={b.onPress}
+                onHoverIn={() => move({ row: () => candidates.length, button: () => i })}
+                style={[styles.button, primary ? styles.primary : styles.secondary, on && styles.focused]}
+              >
+                <Icon name={b.icon} size={18} color={fg} />
+                <Text weight="semibold" size={15} color={fg}>{b.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function Status({ phase, heard, t }: { phase: PlumPhase; heard: string; t: T }) {
+  switch (phase.kind) {
+    case 'listening':
+      return (
+        <View style={styles.status}>
+          <Text size={18} weight="semibold">{heard || t('plum.listening')}</Text>
+          {heard ? null : <Text size={14} color={colors.textFaint}>{t('plum.hint')}</Text>}
+        </View>
+      );
+    case 'thinking':
+      return <Text size={16} color={colors.textFaint}>{`"${phase.heard.text}" · ${t('plum.thinking')}`}</Text>;
+    case 'found':
+      return <Text size={16} color={colors.textFaint}>{`"${phase.heard.text}"`}</Text>;
+    case 'command':
+      return (
+        <View style={styles.status}>
+          <Text size={16} color={colors.textFaint}>{`"${phase.heard.text}"`}</Text>
+          {phase.heard.command ? <Text size={18} weight="semibold">{commandText(phase.heard.command, t)}</Text> : null}
+        </View>
+      );
+    case 'not-understood':
+      return (
+        <View style={styles.status}>
+          {phase.heard.text ? <Text size={16} color={colors.textFaint}>{`"${phase.heard.text}"`}</Text> : null}
+          <Text size={18} weight="semibold">{t('plum.notUnderstood')}</Text>
+        </View>
+      );
+    case 'not-found':
+      return <Text size={18} weight="semibold">{t('plum.notFound', { text: phase.heard.command?.kind === 'play' ? phase.heard.command.title : phase.heard.text })}</Text>;
+    case 'no-playlist':
+      return <Text size={18} weight="semibold">{t('plum.noPlaylist')}</Text>;
+    case 'problem':
+      return <Text size={18} weight="semibold">{t(`plum.problem.${phase.problem}` as MessageKey)}</Text>;
+  }
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
+    zIndex: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(6,4,10,0.72)',
+  },
+  card: {
+    width: '100%',
+    maxWidth: 620,
+    padding: 28,
+    gap: 16,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgRaised,
+  },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  mic: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft },
+  micOn: { backgroundColor: colors.accent },
+  status: { gap: 6 },
+  list: { gap: 6 },
+  item: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: colors.glassStrong,
+  },
+  itemText: { flex: 1, gap: 2 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
+  button: {
+    height: 46,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  primary: { backgroundColor: colors.accent },
+  secondary: { backgroundColor: colors.glassStrong },
+  focused: { borderColor: colors.focusRing },
+});

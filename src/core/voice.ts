@@ -326,3 +326,20 @@ export function parseCommand(spoken: string, now = Date.now()): Parsed {
     confident: !vague && text.length >= 2,
   };
 }
+
+export interface Heard extends Parsed {
+  /** The alternative that was used. */
+  text: string;
+}
+
+/**
+ * Speech recognition gives a few alternatives, best first. Takes the first one the rules are
+ * confident about, else the first that gave any command, else the best guess (nothing understood).
+ */
+export function parseBest(alternatives: readonly string[], now = Date.now()): Heard {
+  const parsed = alternatives.map((text) => ({ text, ...parseCommand(text, now) }));
+  return (
+    parsed.find((p) => p.command && p.confident) ??
+    parsed.find((p) => p.command) ?? { text: alternatives[0] ?? '', command: null, confident: false }
+  );
+}

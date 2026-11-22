@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clockHour, parseCommand, type PlayCommand } from './voice';
+import { clockHour, parseBest, parseCommand, type PlayCommand } from './voice';
 
 // Saturday, 21 November 2026, 21:00 local time.
 const now = new Date(2026, 10, 21, 21, 0).getTime();
@@ -174,5 +174,19 @@ describe('app commands', () => {
   it('gives up on empty input', () => {
     expect(parseCommand('', now)).toEqual({ command: null, confident: false });
     expect(parseCommand('hey plum', now)).toEqual({ command: null, confident: false });
+  });
+});
+
+describe('parseBest', () => {
+  it('takes the first alternative the rules are sure about', () => {
+    const heard = parseBest(['play that cooking show', 'play masterchef from yesterday'], now);
+    expect(heard.text).toBe('play masterchef from yesterday');
+    expect(heard.confident).toBe(true);
+  });
+
+  it('falls back to the first with a command, then to nothing', () => {
+    expect(parseBest(['play that cooking show', 'hey plum'], now)).toMatchObject({ text: 'play that cooking show', confident: false });
+    expect(parseBest(['hey plum'], now)).toEqual({ text: 'hey plum', command: null, confident: false });
+    expect(parseBest([], now)).toEqual({ text: '', command: null, confident: false });
   });
 });

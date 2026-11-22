@@ -10,6 +10,8 @@ import { keyMark, openRight, sectionEntry, setBackStep, setMenuFocus } from './l
 import { LogoMark } from './Logo';
 import { colors, radius } from './tokens';
 import { useLatest } from './useQuery';
+import { plum } from '../voice/plum';
+import { usePlumAvailable } from '../voice/PlumHost';
 
 /**
  * TV / desktop navigation rail. Moving the remote focus only moves the focus; OK opens the section and
@@ -28,6 +30,7 @@ export function Sidebar() {
   // OK: open the section, then step into it once its page shows: a page with columns onto its selected
   // category (once that column is there; ▶ would skip a column still loading), any other page with ▶.
   const shown = useLatest(active);
+  const plumAvailable = usePlumAvailable();
   const open = (item: (typeof NAV_ITEMS)[number], isActive: boolean) => {
     if (!isActive) router.replace(item.href);
     openRight(keyMark(), () => {
@@ -69,6 +72,24 @@ export function Sidebar() {
                   )}
                 </Focusable>
               </DefaultFocus>
+              {item.key === 'search' && plumAvailable ? (
+                // Plum opens a panel over the page, not a section of its own.
+                <Focusable
+                  accessibilityLabel={t('plum.ask')}
+                  onFocus={() => {
+                    setBackStep(null);
+                    entry.focus('plum');
+                  }}
+                  onBlur={entry.blur}
+                  onSelect={plum.open}
+                >
+                  {({ isFocused }) => (
+                    <View style={[styles.item, isFocused && styles.focused]}>
+                      <Icon name="mic" size={20} color={isFocused ? colors.text : colors.textFaint} />
+                    </View>
+                  )}
+                </Focusable>
+              ) : null}
             </Fragment>
           );
         })}

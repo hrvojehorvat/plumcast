@@ -16,6 +16,7 @@ import { TabBar } from '../ui/TabBar';
 import { colors } from '../ui/tokens';
 import { useLatest } from '../ui/useQuery';
 import { useWideLayout } from '../ui/useWideLayout';
+import { PlumHost, PlumPhoneButton } from '../voice/PlumHost';
 
 configureRemote();
 void playlists.init();
@@ -46,7 +47,9 @@ function Shell() {
         </View>
         {wide ? null : <TabBar />}
       </SpatialNavigationView>
+      {wide ? null : <PlumPhoneButton />}
       <LivePlayerHost />
+      <PlumHost />
     </SpatialNavigationRoot>
   );
 }

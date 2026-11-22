@@ -10,6 +10,9 @@ const KEY_MAP: Record<string, Directions> = {
   Enter: Directions.ENTER,
 };
 
+/** Browser: no long-press OK; Plum opens with the V key instead (see src/voice/PlumHost.tsx). */
+export function setLongSelect(_handler: (() => boolean) | null) {}
+
 export function configureRemote() {
   SpatialNavigation.configureRemoteControl({
     remoteControlSubscriber: (callback) => {
