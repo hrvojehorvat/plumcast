@@ -71,6 +71,13 @@
           "backgroundColor": "#0c0a12"
         }
       ],
+      [
+        "expo-speech-recognition",
+        {
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox", "com.google.android.katniss"]
+        }
+      ],
+      "./plugins/withMicrophoneOptional",
       "./plugins/withTvRemote"
     ],
     "scheme": "plumcast",
