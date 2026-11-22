@@ -6,7 +6,7 @@ import { useI18n } from '../ui/i18n';
 import { Icon } from '../ui/Icon';
 import { setLongSelect } from '../ui/remote';
 import { colors } from '../ui/tokens';
-import { plum, usePlumOpen } from './plum';
+import { plum, PLUM_DEV_SAY, usePlumOpen } from './plum';
 import { PlumPanel } from './PlumPanel';
 import { speechAvailable } from './useSpeech';
 
@@ -49,7 +49,8 @@ export function PlumHost() {
 
 /** Whether this device can use Plum (has speech recognition). */
 export function usePlumAvailable(): boolean {
-  return useMemo(() => speechAvailable(), []);
+  // Dev browser builds show Plum without a recognizer too (screenshots feed it text).
+  return useMemo(() => speechAvailable() || PLUM_DEV_SAY, []);
 }
 
 /** Phones: a round mic button above the bottom tabs (they're full). Hidden while something plays. */

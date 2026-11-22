@@ -147,7 +147,12 @@ export function usePlum(): Plum {
   }, [start, stopSearch]);
 
   // Only when the panel opens; later listens come from "Speak again".
-  const firstListen = useLatest(listen);
+  // A sentence given to plum.say (dev screenshots) is used instead of listening.
+  const firstListen = useLatest(() => {
+    const said = plum.takeSaid();
+    if (said) onFinal([said]);
+    else listen();
+  });
   useEffect(() => firstListen.current(), [firstListen]);
 
   // A speech problem ends listening and is what's shown.

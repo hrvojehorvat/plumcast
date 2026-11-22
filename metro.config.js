@@ -20,4 +20,11 @@ config.server.enhanceMiddleware = (middleware, metroServer) => {
   };
 };
 
+// dev/screenshots.mjs builds against the demo server: its own cache, so neither build reuses the
+// other's inlined EXPO_PUBLIC_* values (Metro would otherwise keep the .env.local login baked in).
+if (process.env.PLUMCAST_METRO_CACHE) {
+  const { FileStore } = require('metro-cache');
+  config.cacheStores = [new FileStore({ root: process.env.PLUMCAST_METRO_CACHE })];
+}
+
 module.exports = config;
