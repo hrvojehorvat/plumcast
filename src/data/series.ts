@@ -137,6 +137,12 @@ export async function listSeries(playlistId: number, categoryId: string, query =
   return rows.map(toSeries);
 }
 
+/** Every series' id and name, light, for Plum's sound-alike search. */
+export async function seriesNames(playlistId: number): Promise<{ id: string; name: string }[]> {
+  const db = await getDb();
+  return db.getAllAsync<{ id: string; name: string }>('SELECT id, name FROM series WHERE playlist_id = ?', playlistId);
+}
+
 export async function getSeries(playlistId: number, id: string): Promise<SeriesItem | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<SeriesRow>(`SELECT ${COLUMNS} FROM series s ${JOINS} WHERE s.playlist_id = ? AND s.id = ?`, playlistId, id);

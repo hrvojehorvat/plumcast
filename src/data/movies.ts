@@ -134,6 +134,12 @@ export async function listMovies(playlistId: number, categoryId: string, query =
   return rows.map(toMovie);
 }
 
+/** Every movie's id and name, light (no progress or favourites), for Plum's sound-alike search. */
+export async function movieNames(playlistId: number): Promise<{ id: string; name: string }[]> {
+  const db = await getDb();
+  return db.getAllAsync<{ id: string; name: string }>('SELECT id, name FROM movies WHERE playlist_id = ?', playlistId);
+}
+
 export async function getMovie(playlistId: number, id: string): Promise<MovieItem | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<MovieRow>(`SELECT ${COLUMNS} FROM movies m ${JOINS} WHERE m.playlist_id = ? AND m.id = ?`, playlistId, id);

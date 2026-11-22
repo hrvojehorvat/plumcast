@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryMatches, categoryScore, channelKey, channelScore, countryWords, saidSection, withoutCountry, isSure, rankByName, rankProgrammes, sameTitle, searchVariants, titleScore, whenWindow } from './plumMatch';
+import { categoryMatches, categoryScore, channelKey, channelScore, countryWords, saidSection, soundKey, soundScore, withoutCountry, bareTitle, isSure, rankByName, rankProgrammes, sameTitle, searchVariants, titleScore, whenWindow } from './plumMatch';
 
 // Saturday, 21 November 2026, 21:00 local time.
 const now = new Date(2026, 10, 21, 21, 0).getTime();
@@ -159,5 +159,34 @@ describe('categories', () => {
     expect(saidSection('serien netflix')).toBe('series');
     expect(saidSection('kanali sport')).toBe('live');
     expect(saidSection('masterchef')).toBeNull();
+  });
+});
+
+describe('bareTitle', () => {
+  it('drops language tags, years and quality from catalog names', () => {
+    expect(bareTitle('EN - WALL·E (2008)')).toBe('WALL·E');
+    expect(bareTitle('[DE] Oben (2009) HD')).toBe('Oben');
+    expect(bareTitle('HR | Gospodar prstenova (Multi-Sub)')).toBe('Gospodar prstenova');
+    expect(bareTitle('Up')).toBe('Up');
+    expect(bareTitle('WALL-E')).toBe('WALL-E');
+    expect(bareTitle('EN| Up (2009)')).toBe('Up');
+  });
+});
+
+describe('sound', () => {
+  it('hears misheard titles as the same', () => {
+    expect(soundKey('WALL·E')).toBe('vl');
+    expect(soundKey('volley')).toBe('vl');
+    expect(soundKey('voli')).toBe('vl');
+    expect(soundScore('volley', 'WALL-E')).toBe(0.75);
+    expect(soundScore('mona', 'Moana')).toBe(0.75);
+    expect(soundScore('voli', 'EN - WALL·E (2008)')).toBe(0.75);
+    expect(soundScore('volley', '[EN] WALL·E 4K')).toBe(0.75);
+  });
+
+  it('stays below a sure match and needs about the same number of words', () => {
+    expect(soundScore('volley', 'WALL·E')).toBeLessThan(0.8);
+    expect(soundScore('volley', 'The Wall Street Journal Special')).toBe(0);
+    expect(soundScore('a', 'Avatar')).toBe(0);
   });
 });

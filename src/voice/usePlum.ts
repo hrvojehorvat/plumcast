@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { parseBest, type Heard } from '../core/voice';
+import { parseBest, parseCommand, type Heard } from '../core/voice';
 import { usePrefs } from '../data/prefs';
 import { activePlaylist, usePlaylists } from '../data/store';
 import { resolvePlay, type PlumTarget, type Resolution } from '../data/voice';
@@ -60,12 +60,27 @@ export function usePlum(): Plum {
       if (command.kind !== 'play') return setPhase({ kind: 'command', heard });
       if (!playlist) return setPhase({ kind: 'no-playlist', heard });
       setPhase({ kind: 'thinking', heard });
-      resolvePlay(playlist, command, { offsetHours: epgOffsetHours, lang })
-        .then((resolution) => {
+      // The recognizer's other guesses, tried in order when the best one finds nothing ("wall e" after "volley").
+      const others = alternatives
+        .map((text) => ({ text, ...parseCommand(text) }))
+        .filter((h) => h.command?.kind === 'play' && h.command.title !== command.title);
+      const tryEach = async (): Promise<{ heard: Heard; resolution: Resolution }> => {
+        const options = { offsetHours: epgOffsetHours, lang };
+        const first = await resolvePlay(playlist, command, options);
+        if (first.best) return { heard, resolution: first };
+        for (const other of others) {
+          if (other.command?.kind !== 'play') continue;
+          const resolution = await resolvePlay(playlist, other.command, options);
+          if (resolution.best) return { heard: other, resolution };
+        }
+        return { heard, resolution: first };
+      };
+      tryEach()
+        .then(({ heard: used, resolution }) => {
           if (id !== run.current) return;
           // Sure: play it at once. Unsure: show the choices.
           if (resolution.best && resolution.sure) return play(resolution.best);
-          setPhase(resolution.best ? { kind: 'found', heard, resolution } : { kind: 'not-found', heard });
+          setPhase(resolution.best ? { kind: 'found', heard: used, resolution } : { kind: 'not-found', heard });
         })
         .catch((error: unknown) => {
           console.warn('[plum] search failed', error instanceof Error ? error.message : error);

@@ -12,6 +12,9 @@ import {
   saidSection,
   sameTitle,
   searchVariants,
+  bareTitle,
+  soundKey,
+  soundScore,
   titleScore,
   whenWindow,
   withoutCountry,
@@ -23,9 +26,9 @@ import type { PlayCommand } from '../core/voice';
 import type { CategorySection } from '../core/voiceWords';
 import { channelArchive } from './catchup';
 import { ALL, channelByNumber, FAVORITES, listChannels, listLiveCategories, RECENT, searchProgrammes, type AiredItem, type Channel } from './live';
-import { listMovieCategories, listMovies, type MovieItem } from './movies';
+import { getMovie, listMovieCategories, listMovies, movieNames, type MovieItem } from './movies';
 import type { Playlist } from './playlists';
-import { listSeries, listSeriesCategories, type SeriesItem } from './series';
+import { getSeries, listSeries, listSeriesCategories, seriesNames, type SeriesItem } from './series';
 
 /**
  * Plum: finds what a parsed "play …" command means in the stored catalog and guide. Reads only
@@ -260,6 +263,73 @@ async function findCategories(playlistId: number, phrase: string): Promise<Ranke
   return out;
 }
 
+// ---- sound-alikes ("play wall-e" heard as "volley")
+
+interface SoundEntry {
+  kind: 'movie' | 'series';
+  id: string;
+  name: string;
+  key: string;
+}
+/** Sound keys of every movie and series name, built once per playlist sync, in memory. */
+let soundIndex: { of: string; entries: Promise<SoundEntry[]> } | null = null;
+/** Sound-alikes offered at most. */
+const MAX_SOUND = 8;
+/** Below this the normal search counts as not having found it. */
+const WEAK_SCORE = 0.8;
+
+function soundEntries(playlist: Playlist): Promise<SoundEntry[]> {
+  const of = `${playlist.id}|${playlist.syncedAt ?? 0}`;
+  if (soundIndex?.of !== of) {
+    const entries = Promise.all([movieNames(playlist.id), seriesNames(playlist.id)]).then(([movies, series]) => [
+      ...movies.map((m) => ({ kind: 'movie' as const, id: m.id, name: m.name, key: soundKey(bareTitle(m.name)) })),
+      ...series.map((s) => ({ kind: 'series' as const, id: s.id, name: s.name, key: soundKey(bareTitle(s.name)) })),
+    ]);
+    soundIndex = { of, entries };
+    entries.catch(() => {
+      if (soundIndex?.of === of) soundIndex = null;
+    });
+  }
+  return soundIndex.entries;
+}
+
+/** Movies and series whose names sound like what was heard (offered, never played on their own). */
+async function findBySound(playlist: Playlist, title: string, only: 'movie' | 'series' | null): Promise<Ranked<PlumTarget>[]> {
+  const key = soundKey(title);
+  if (key.length < 2) return [];
+  const entries = await soundEntries(playlist);
+  const hits = entries
+    .filter((e) => (!only || e.kind === only) && (e.key === key || e.key.length >= 4))
+    .map((e) => ({ e, score: soundScore(title, e.name) }))
+    .filter((h) => h.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_SOUND);
+  trace(`sounds like "${title}" (${key})`, hits.map((h) => h.e.name));
+  const items = await Promise.all(
+    hits.map(async ({ e, score }): Promise<Ranked<PlumTarget> | null> => {
+      if (e.kind === 'movie') {
+        const movie = await getMovie(playlist.id, e.id);
+        return movie ? { item: { kind: 'movie' as const, movie }, score } : null;
+      }
+      const series = await getSeries(playlist.id, e.id);
+      return series ? { item: { kind: 'series' as const, series, season: null, episode: null }, score } : null;
+    }),
+  );
+  return items.filter((r): r is Ranked<PlumTarget> => r !== null);
+}
+
+/**
+ * Adds movies and series that sound like what was heard when none matched strongly by spelling
+ * (programmes or channels that did match don't count: "volley" finds volleyball in the guide,
+ * the user meant WALL·E). With sound-alikes in the list nothing plays at once.
+ */
+async function withSoundAlikes(playlist: Playlist, title: string, found: Ranked<PlumTarget>[], only: 'movie' | 'series' | null): Promise<Resolution> {
+  const strong = found.some((r) => (r.item.kind === 'movie' || r.item.kind === 'series') && r.score >= WEAK_SCORE);
+  const sounds = strong ? [] : await findBySound(playlist, title, only).catch(() => []);
+  const resolution = finish([...found, ...sounds]);
+  return sounds.length ? { ...resolution, sure: false } : resolution;
+}
+
 // ---- the command
 
 export async function resolvePlay(playlist: Playlist, cmd: PlayCommand, options: ResolveOptions): Promise<Resolution> {
@@ -278,14 +348,16 @@ export async function resolvePlay(playlist: Playlist, cmd: PlayCommand, options:
   }
   if (cmd.prefer === 'movie') {
     const movies = await Promise.all(searchVariants(title).map((q) => listMovies(id, ALL, q, 'az', PER_QUERY)));
-    return finish([...rankByName(movies.flat(), title, (m) => m.name).map((r) => ({ item: { kind: 'movie' as const, movie: r.item }, score: r.score })), ...categories]);
+    const found = rankByName(movies.flat(), title, (m) => m.name).map((r) => ({ item: { kind: 'movie' as const, movie: r.item }, score: r.score }));
+    return withSoundAlikes(playlist, title, [...found, ...categories], 'movie');
   }
   if (cmd.prefer === 'series') {
     const series = await Promise.all(searchVariants(title).map((q) => listSeries(id, ALL, q, 'az', PER_QUERY)));
-    return finish([
-      ...rankByName(series.flat(), title, (s) => s.name).map((r) => ({ item: { kind: 'series' as const, series: r.item, season: cmd.season, episode: cmd.episode }, score: r.score })),
-      ...categories,
-    ]);
+    const found = rankByName(series.flat(), title, (s) => s.name).map((r) => ({
+      item: { kind: 'series' as const, series: r.item, season: cmd.season, episode: cmd.episode },
+      score: r.score,
+    }));
+    return withSoundAlikes(playlist, title, [...found, ...categories], 'series');
   }
 
   const window: TimeWindow = cmd.when ? whenWindow(cmd.when, now) : { from: now - BACK_MS, to: now + 60_000, around: now };
@@ -333,5 +405,5 @@ export async function resolvePlay(playlist: Playlist, cmd: PlayCommand, options:
   for (const r of rankByName(movies, title, (m) => m.name)) all.push({ item: { kind: 'movie', movie: r.item }, score: r.score });
   for (const r of rankByName(series, title, (s) => s.name)) all.push({ item: { kind: 'series', series: r.item, season: null, episode: null }, score: r.score });
   all.push(...categories);
-  return finish(all);
+  return withSoundAlikes(playlist, title, all, null);
 }

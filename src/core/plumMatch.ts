@@ -1,6 +1,7 @@
 import { foldSearch } from './search';
 import type { When } from './voice';
 import type { Lang } from './i18n';
+import { splitTitle } from './vod';
 import { CATEGORY_KINDS, COUNTRIES, PARTS_OF_DAY, type CategorySection } from './voiceWords';
 
 /**
@@ -279,4 +280,62 @@ export function categoryScore(phrase: string, name: string): number {
     nameWords.some((nw) => nw === w || (w.length >= 4 && nw.startsWith(w)) || nearlySame(w, nw)) || (w.length >= 4 && nameCompact.includes(w));
   if (!words.every(inName)) return 0;
   return Math.max(titleScore(words.join(' '), n), FOUND_ALL);
+}
+
+// ---------------------------------------------------------------- sound
+
+/** Spelling → rough sound, applied in order (English and Croatian spellings of the same sounds). */
+const SOUNDS: readonly [RegExp, string][] = [
+  [/ph/g, 'f'],
+  [/ck/g, 'k'],
+  [/qu/g, 'kv'],
+  [/[qc]/g, 'k'],
+  [/x/g, 'ks'],
+  [/w/g, 'v'],
+  [/z/g, 's'],
+  [/[yj]/g, 'i'],
+  [/h/g, ''],
+];
+
+/** Language / quality tags providers put around names ("EN - …", "[DE] …", "… 4K", "… (Multi-Sub)"). */
+const NAME_PREFIX = /^\s*(?:\[[^\]]{1,8}\]\s*|\([^)]{1,8}\)\s*|[A-Z0-9]{2,4}\s*[|:]\s*|[A-Z0-9]{2,4}\s+[-–]\s+)+/;
+const NAME_SUFFIX = /\s*(?:[([][^)\]]*[)\]]|\b(?:hd|fhd|uhd|sd|4k|hdr|multi\s*sub|sub|dub|sinkronizirano|titlovano)\b)\s*$/i;
+
+/** A catalog name as people say it: "EN - WALL·E (2008) 4K" → "WALL·E". */
+export function bareTitle(name: string): string {
+  let title = splitTitle(name.replace(NAME_PREFIX, '')).title;
+  for (let i = 0; i < 4; i++) {
+    const next = splitTitle(title.replace(NAME_SUFFIX, '')).title;
+    if (next === title) break;
+    title = next;
+  }
+  return title.trim() || name;
+}
+
+/**
+ * A rough sound key: consonants only, sound-alike letters merged, doubles collapsed. "WALL·E",
+ * "volley" and "voli" all become "vl", which is how speech recognition mishears a title.
+ */
+export function soundKey(text: string): string {
+  let s = clean(text).replace(/ /g, '');
+  for (const [from, to] of SOUNDS) s = s.replace(from, to);
+  s = s.replace(/(.)\1+/g, '$1');
+  const first = /^[aeiou]/.test(s) ? 'a' : '';
+  return first + s.replace(/[aeiou]/g, '');
+}
+
+/**
+ * 0…0.75: what was heard sounds like the catalog `name` ("voli" ~ "EN - WALL·E (2008)"). Above a
+ * loose spelling match, below a sure one: sound-alikes are offered to pick from, never played on
+ * their own.
+ */
+export function soundScore(said: string, name: string): number {
+  const bare = bareTitle(name);
+  const a = soundKey(said);
+  const b = soundKey(bare);
+  if (a.length < 2 || !b) return 0;
+  const words = (t: string) => clean(t).split(' ').filter(Boolean).length;
+  if (Math.abs(words(said) - words(bare)) > 1) return 0;
+  if (a === b) return 0.75;
+  return a.length >= 4 && editsWithin(a, b, 1) ? 0.7 : 0;
 }
