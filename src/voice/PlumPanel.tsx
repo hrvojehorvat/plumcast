@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useLockSpatialNavigation } from 'react-tv-space-navigation';
 import { dayLabel } from '../catchup/useCatchup';
 import { formatDay } from '../core/format';
@@ -16,8 +16,14 @@ import { useTimeFormat } from '../ui/useTimeFormat';
 import { plum } from './plum';
 import { usePlum, type PlumPhase } from './usePlum';
 
-/** Found items shown at once; the list scrolls with the focus. */
-const VISIBLE = 5;
+/** Found items shown at once at most; the list scrolls with the focus. */
+const MAX_VISIBLE = 5;
+/** Height of one result row with its gap, and of everything else on the card (header, text, buttons, padding). */
+const ROW_HEIGHT = 66;
+const CARD_CHROME = 300;
+
+/** Rows that fit the screen: a TV (540 points tall) gets 3, a phone 5. Otherwise the card overflows. */
+const visibleRows = (screenHeight: number) => Math.max(2, Math.min(MAX_VISIBLE, Math.floor((screenHeight - CARD_CHROME) / ROW_HEIGHT)));
 /** After a key press the mouse pointer can't take the focus for this long. */
 const HOVER_AFTER_KEY_MS = 800;
 
@@ -67,7 +73,8 @@ function useTargetLine(): (target: PlumTarget) => Line {
 
 /** Dev builds: what the rules understood, to tell a mishearing from a bad match. */
 function debugText(phase: PlumPhase): string | null {
-  if (!__DEV__ || !('heard' in phase)) return null;
+  // Not in screenshots (dev/screenshots.mjs sets this).
+  if (!__DEV__ || !('heard' in phase) || (globalThis as { __plumcastScreenshots?: boolean }).__plumcastScreenshots) return null;
   const { text, command, confident } = phase.heard;
   const parts = [`"${text}"`];
   if (command?.kind === 'play') {
@@ -136,8 +143,9 @@ export function PlumPanel() {
   });
 
   const debug = debugText(phase);
-  // Keep the focused item in view, a little above the middle.
-  const offset = Math.max(0, Math.min(Math.min(row, candidates.length - 1) - 2, candidates.length - VISIBLE));
+  const VISIBLE = visibleRows(useWindowDimensions().height);
+  // Keep the focused item in view, in the middle.
+  const offset = Math.max(0, Math.min(Math.min(row, candidates.length - 1) - Math.floor(VISIBLE / 2), candidates.length - VISIBLE));
   const shownItems = candidates.slice(offset, offset + VISIBLE);
 
   return (
