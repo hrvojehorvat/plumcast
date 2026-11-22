@@ -77,6 +77,8 @@ export function useSpeech(lang: Lang, onFinal: (alternatives: string[]) => void)
   const finalRef = useRef(onFinal);
   const delivered = useRef(false);
   const active = useRef(false);
+  /** The latest interim text: some recognizers (Android TV) never send a final result for it. */
+  const interim = useRef<string[]>([]);
 
   useEffect(() => {
     finalRef.current = onFinal;
@@ -88,29 +90,44 @@ export function useSpeech(lang: Lang, onFinal: (alternatives: string[]) => void)
     setState('error');
   };
 
+  const deliver = (alternatives: string[]) => {
+    delivered.current = true;
+    active.current = false;
+    setState('done');
+    finalRef.current(alternatives.slice(0, ALTERNATIVES));
+  };
+
+  /**
+   * Listening ended without a final result. Android TV's recognizer often does that, or reports
+   * "no match" / "speech timeout", right after showing the words: use the last interim text then.
+   * Only with no words at all was nothing heard.
+   */
+  const endWithout = (problem: SpeechProblem) => {
+    if (!active.current || delivered.current) return;
+    if (interim.current.length && (problem === 'no-speech' || problem === 'other')) deliver(interim.current);
+    else fail(problem);
+  };
+
   useSpeechRecognitionEvent('result', (event) => {
     if (!active.current) return;
     const alternatives = event.results.map((r) => r.transcript.trim()).filter(Boolean);
-    if (!alternatives.length) return;
-    setHeard(alternatives[0]);
+    if (alternatives.length) {
+      interim.current = alternatives;
+      setHeard(alternatives[0]);
+    }
     if (event.isFinal && !delivered.current) {
-      delivered.current = true;
-      active.current = false;
-      setState('done');
-      finalRef.current(alternatives.slice(0, ALTERNATIVES));
+      // A final result can come without text when the interim ones had it.
+      const final = alternatives.length ? alternatives : interim.current;
+      if (final.length) deliver(final);
+      else fail('no-speech');
     }
   });
   useSpeechRecognitionEvent('error', (event) => {
-    if (!active.current || event.error === 'aborted') return;
-    fail(problemFor(event.error));
+    if (event.error === 'aborted') return;
+    endWithout(problemFor(event.error));
   });
-  useSpeechRecognitionEvent('nomatch', () => {
-    if (active.current) fail('no-speech');
-  });
-  useSpeechRecognitionEvent('end', () => {
-    // Ended without a final result and without an error: nothing was said.
-    if (active.current && !delivered.current) fail('no-speech');
-  });
+  useSpeechRecognitionEvent('nomatch', () => endWithout('no-speech'));
+  useSpeechRecognitionEvent('end', () => endWithout('no-speech'));
 
   const start = useCallback(async () => {
     if (!speechAvailable()) return fail('unavailable');
@@ -122,6 +139,7 @@ export function useSpeech(lang: Lang, onFinal: (alternatives: string[]) => void)
     }
     delivered.current = false;
     active.current = true;
+    interim.current = [];
     setHeard('');
     setProblem(null);
     setState('listening');
