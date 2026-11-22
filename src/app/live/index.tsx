@@ -20,7 +20,7 @@ import { SearchField } from '../../ui/SearchField';
 import { Text } from '../../ui/Text';
 import { colors, radius, tv } from '../../ui/tokens';
 import { setBackStep, whenEnteredSideways } from '../../ui/lastKey';
-import { usePendingCategory } from '../../ui/pendingCategory';
+import { usePendingCategory } from '../../ui/pendingOpen';
 import { useOpenRight, useSectionEntry } from '../../ui/useOpenRight';
 import { useWideLayout } from '../../ui/useWideLayout';
 

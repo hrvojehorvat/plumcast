@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { NAV_ITEMS } from '../core/nav';
+import type { Screen } from '../core/voice';
 import { resumeAt } from '../core/vod';
 import { listChannels, type Channel } from '../data/live';
 import type { Playlist } from '../data/playlists';
@@ -7,7 +8,7 @@ import type { PlumTarget } from '../data/voice';
 import { movieTitle } from '../movies/useMovies';
 import { livePlayer, moviePlayer } from '../player/store';
 import { keyMark, openRight, sectionEntry } from '../ui/lastKey';
-import { requestCategory } from '../ui/pendingCategory';
+import { requestCategory } from '../ui/pendingOpen';
 
 /** The channel's own category, so channel up/down zaps like when it's opened from Live TV. */
 async function zapList(playlist: Playlist, channel: Channel): Promise<Channel[]> {
@@ -42,13 +43,17 @@ export async function playTarget(playlist: Playlist, target: PlumTarget): Promis
     case 'series':
       router.push(`/series/${encodeURIComponent(target.series.id)}`);
       return;
-    case 'category': {
-      const href = NAV_ITEMS.find((i) => i.key === target.section)?.href ?? '/';
+    case 'category':
       requestCategory(target.section, target.id);
-      router.replace(href);
-      // TV / wide: into the section's category list once it's there (as from the menu).
-      openRight(keyMark(), () => (sectionEntry(target.section)?.() ? 'done' : 'wait'));
+      openScreen(target.section);
       return;
-    }
   }
+}
+
+/** Opens a section like the menu does; on TV / wide screens the focus moves into its list once it's there. */
+export function openScreen(screen: Screen) {
+  const item = NAV_ITEMS.find((i) => i.key === screen);
+  if (!item) return;
+  router.replace(item.href);
+  if (item.columns) openRight(keyMark(), () => (sectionEntry(item.key)?.() ? 'done' : 'wait'));
 }

@@ -5,7 +5,7 @@ import { dayLabel } from '../catchup/useCatchup';
 import { formatDay } from '../core/format';
 import { dayStart } from '../core/guide';
 import type { MessageKey } from '../core/i18n';
-import type { PlumCommand } from '../core/voice';
+import { useGuideState } from '../data/guide';
 import type { PlumTarget } from '../data/voice';
 import { usePlayerKeys } from '../player/usePlayerKeys';
 import { useI18n } from '../ui/i18n';
@@ -63,23 +63,6 @@ function useTargetLine(): (target: PlumTarget) => Line {
         };
     }
   };
-}
-
-/** What a non-play command will do, in words. */
-function commandText(command: PlumCommand, t: T): string {
-  switch (command.kind) {
-    case 'open':
-      return t('plum.openScreen', { screen: t(`nav.${command.screen}` as MessageKey) });
-    case 'refresh-epg':
-      return t('plum.refreshGuide');
-    case 'search':
-      return t('plum.search', { query: command.query });
-    case 'play-that':
-      if (command.index === null) return t('plum.playThat');
-      return command.index < 0 ? t('plum.playLast') : t('plum.playNumber', { n: command.index });
-    case 'play':
-      return command.title;
-  }
 }
 
 /** Dev builds: what the rules understood, to tell a mishearing from a bad match. */
@@ -235,13 +218,8 @@ function Status({ phase, heard, t }: { phase: PlumPhase; heard: string; t: T }) 
       return <Text size={16} color={colors.textFaint}>{`"${phase.heard.text}" · ${t('plum.thinking')}`}</Text>;
     case 'found':
       return <Text size={16} color={colors.textFaint}>{`"${phase.heard.text}"`}</Text>;
-    case 'command':
-      return (
-        <View style={styles.status}>
-          <Text size={16} color={colors.textFaint}>{`"${phase.heard.text}"`}</Text>
-          {phase.heard.command ? <Text size={18} weight="semibold">{commandText(phase.heard.command, t)}</Text> : null}
-        </View>
-      );
+    case 'refreshing':
+      return <Refreshing phase={phase} t={t} />;
     case 'not-understood':
       return (
         <View style={styles.status}>
@@ -256,6 +234,24 @@ function Status({ phase, heard, t }: { phase: PlumPhase; heard: string; t: T }) 
     case 'problem':
       return <Text size={18} weight="semibold">{t(`plum.problem.${phase.problem}` as MessageKey)}</Text>;
   }
+}
+
+/** "Refresh the TV guide": progress while it downloads, then done or the guide's own error. */
+function Refreshing({ phase, t }: { phase: Extract<PlumPhase, { kind: 'refreshing' }>; t: T }) {
+  const guide = useGuideState();
+  const syncing = guide.syncing?.playlistId === phase.playlistId ? guide.syncing : null;
+  const problem = guide.problem[phase.playlistId];
+  const text = syncing
+    ? t('plum.refreshing', { n: syncing.programmes })
+    : problem && problem.at >= phase.startedAt
+      ? t('guide.failed')
+      : t('plum.refreshed');
+  return (
+    <View style={styles.status}>
+      <Text size={16} color={colors.textFaint}>{`"${phase.heard.text}"`}</Text>
+      <Text size={18} weight="semibold">{text}</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

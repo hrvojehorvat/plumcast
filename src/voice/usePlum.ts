@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parseBest, parseCommand, type Heard } from '../core/voice';
+import { syncGuide } from '../data/guide';
 import { usePrefs } from '../data/prefs';
 import { activePlaylist, usePlaylists } from '../data/store';
 import { resolvePlay, type PlumTarget, type Resolution } from '../data/voice';
 import { useI18n } from '../ui/i18n';
+import { requestSearch } from '../ui/pendingOpen';
 import { useLatest } from '../ui/useQuery';
 import { plum } from './plum';
-import { playTarget } from './playTarget';
+import { openScreen, playTarget } from './playTarget';
 import { useSpeech, type SpeechProblem } from './useSpeech';
 
 /** Where Plum is: listening, thinking about what was said, or showing the answer. */
@@ -15,8 +17,8 @@ export type PlumPhase =
   | { kind: 'thinking'; heard: Heard }
   /** A play command with what was found (may be unsure: show the candidates). */
   | { kind: 'found'; heard: Heard; resolution: Resolution }
-  /** Understood, not a play command (open a screen, refresh the guide, search, play that). */
-  | { kind: 'command'; heard: Heard }
+  /** "Refresh the TV guide": the download runs; progress and result come from the guide state. */
+  | { kind: 'refreshing'; heard: Heard; playlistId: number; startedAt: number }
   | { kind: 'not-understood'; heard: Heard }
   | { kind: 'not-found'; heard: Heard }
   | { kind: 'no-playlist'; heard: Heard }
@@ -57,8 +59,23 @@ export function usePlum(): Plum {
       const heard = parseBest(alternatives);
       const command = heard.command;
       if (!command) return setPhase({ kind: 'not-understood', heard });
-      if (command.kind !== 'play') return setPhase({ kind: 'command', heard });
+      if (command.kind === 'open') {
+        plum.close();
+        return openScreen(command.screen);
+      }
+      if (command.kind === 'search') {
+        plum.close();
+        requestSearch(command.query);
+        return openScreen('search');
+      }
+      // "Play that" needs the focused item: not in this version.
+      if (command.kind === 'play-that') return setPhase({ kind: 'not-understood', heard });
       if (!playlist) return setPhase({ kind: 'no-playlist', heard });
+      if (command.kind === 'refresh-epg') {
+        setPhase({ kind: 'refreshing', heard, playlistId: playlist.id, startedAt: Date.now() });
+        void syncGuide(playlist);
+        return;
+      }
       setPhase({ kind: 'thinking', heard });
       // The recognizer's other guesses, tried in order when the best one finds nothing ("wall e" after "volley").
       const others = alternatives

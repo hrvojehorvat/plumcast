@@ -16,6 +16,7 @@ import { livePlayer } from '../player/store';
 import { ProgrammeTile, PROGRAMME_TILE } from '../search/ProgrammeTile';
 import { isEmpty, useFullSearch, type SearchResults } from '../search/useSearch';
 import { SeriesPoster } from '../series/SeriesPoster';
+import { usePendingSearch } from '../ui/pendingOpen';
 import { Button } from '../ui/Button';
 import { useI18n } from '../ui/i18n';
 import { Row, Screen } from '../ui/Screen';
@@ -55,6 +56,7 @@ function FullSearch({ playlist }: { playlist: Playlist }) {
     lastQuery = q;
     setQueryState(q);
   };
+  usePendingSearch(setQuery);
   const debounced = useDebounced(query, 300);
   const found = useFullSearch(playlist, debounced);
   const recent = useRecentSearches();

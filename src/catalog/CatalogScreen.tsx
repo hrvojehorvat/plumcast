@@ -26,7 +26,7 @@ import { Text } from '../ui/Text';
 import { colors, radius, tv } from '../ui/tokens';
 import { setBackStep, whenEnteredSideways } from '../ui/lastKey';
 import { useLatest } from '../ui/useQuery';
-import { usePendingCategory } from '../ui/pendingCategory';
+import { usePendingCategory } from '../ui/pendingOpen';
 import { useOpenRight, useSectionEntry } from '../ui/useOpenRight';
 import { useWideLayout } from '../ui/useWideLayout';
 import { POSTER_TEXT } from './Poster';
