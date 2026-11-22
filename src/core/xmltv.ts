@@ -16,10 +16,19 @@ export interface XmltvProgramme {
 const OPEN = '<programme';
 const CLOSE = '</programme>';
 
+/**
+ * Decides from a programme's channel and times alone whether it is wanted. Guides list thousands
+ * of channels; reading the title and description of the ones thrown away anyway is most of the work.
+ */
+export type KeepProgramme = (channel: string, start: number, end: number) => boolean;
+
 export class XmltvParser {
   private buffer = '';
 
-  constructor(private readonly onProgramme: (programme: XmltvProgramme) => void) {}
+  constructor(
+    private readonly onProgramme: (programme: XmltvProgramme) => void,
+    private readonly keep: KeepProgramme | null = null,
+  ) {}
 
   push(chunk: string) {
     this.buffer += chunk;
@@ -57,8 +66,11 @@ export class XmltvParser {
         pos = open;
         break;
       }
-      const programme = readProgramme(buf.slice(open + OPEN.length, tagEnd), buf.slice(tagEnd + 1, close));
-      if (programme) this.onProgramme(programme);
+      const head = readHead(buf.slice(open + OPEN.length, tagEnd));
+      if (head && (!this.keep || this.keep(head.channel, head.start, head.end))) {
+        const programme = readBody(head, buf.slice(tagEnd + 1, close));
+        if (programme) this.onProgramme(programme);
+      }
       pos = close + CLOSE.length;
     }
     this.buffer = buf.slice(pos);
@@ -74,17 +86,34 @@ export function parseXmltv(text: string): XmltvProgramme[] {
   return out;
 }
 
-function readProgramme(attrs: string, body: string): XmltvProgramme | null {
+type Head = Pick<XmltvProgramme, 'channel' | 'start' | 'end'>;
+
+/** Channel and times from the `<programme …>` attributes (cheap, read for every programme). */
+function readHead(attrs: string): Head | null {
   const channel = attr(attrs, 'channel');
   const start = parseXmltvDate(attr(attrs, 'start'));
   const end = parseXmltvDate(attr(attrs, 'stop'));
-  const title = element(body, 'title');
-  if (!channel || start === null || end === null || end <= start || !title) return null;
-  return { channel, start, end, title, description: element(body, 'desc') };
+  if (!channel || start === null || end === null || end <= start) return null;
+  return { channel, start, end };
 }
 
+/** Title and description: only for programmes that are kept. */
+function readBody(head: Head, body: string): XmltvProgramme | null {
+  const title = element(body, 'title');
+  if (!title) return null;
+  return { ...head, title, description: element(body, 'desc') };
+}
+
+/** Attribute patterns, built once (a new RegExp per programme adds up over 500k programmes). */
+const ATTRS = new Map<string, RegExp>();
+
 function attr(attrs: string, name: string): string | null {
-  const match = new RegExp(`\\s${name}\\s*=\\s*("([^"]*)"|'([^']*)')`).exec(attrs);
+  let pattern = ATTRS.get(name);
+  if (!pattern) {
+    pattern = new RegExp(`\\s${name}\\s*=\\s*("([^"]*)"|'([^']*)')`);
+    ATTRS.set(name, pattern);
+  }
+  const match = pattern.exec(attrs);
   if (!match) return null;
   return decodeXml(match[2] ?? match[3] ?? '').trim() || null;
 }

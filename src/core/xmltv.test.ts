@@ -50,6 +50,23 @@ describe('parseXmltv', () => {
     expect(list[1]).toMatchObject({ title: 'News <live>', description: null });
   });
 
+  it('skips unwanted programmes before reading them, by channel and times only', () => {
+    const seen: string[] = [];
+    const out: XmltvProgramme[] = [];
+    const parser = new XmltvParser(
+      (p) => out.push(p),
+      (channel, start) => {
+        seen.push(channel);
+        return start < Date.UTC(2026, 10, 18, 20, 0);
+      },
+    );
+    parser.push(DOC);
+    parser.end();
+    expect(out.map((p) => p.title)).toEqual(['Tatort & Co']);
+    // Asked once per programme with valid times (3 of 5: one has no body, one ends before it starts), the untitled one included.
+    expect(seen).toEqual(['one.de', 'one.de', 'one.de']);
+  });
+
   it('gives the same result for any chunking', () => {
     const whole = parseXmltv(DOC);
     for (const size of [1, 3, 7, 10, 11, 64]) {

@@ -214,11 +214,12 @@ async function downloadGuide(
   const keepFrom = now - KEEP_BACK_MS;
   const keepTo = now + KEEP_AHEAD_MS;
   const rows: GuideRow[] = [];
-  const parser = new XmltvParser((p) => {
-    const channel = p.channel.toLowerCase();
-    if (!channels.has(channel) || p.end < keepFrom || p.start > keepTo) return;
-    rows.push([channel, p.start, p.end, p.title, p.description]);
-  });
+  // Only this playlist's channels within the kept days: the rest is skipped before its title and
+  // description are read (most of a provider's guide is other countries' channels).
+  const parser = new XmltvParser(
+    (p) => rows.push([p.channel.toLowerCase(), p.start, p.end, p.title, p.description]),
+    (channel, start, end) => end >= keepFrom && start <= keepTo && channels.has(channel.toLowerCase()),
+  );
 
   const local = new AbortController();
   let idle: ReturnType<typeof setTimeout> | undefined;
