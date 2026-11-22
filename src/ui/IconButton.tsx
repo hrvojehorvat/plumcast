@@ -1,12 +1,29 @@
+import type { Ref } from 'react';
 import { StyleSheet, View } from 'react-native';
+import type { SpatialNavigationNodeRef } from 'react-tv-space-navigation';
 import { Focusable } from './Focusable';
 import { Icon, type IconName } from './Icon';
 import { colors, radius } from './tokens';
 
 /** Round icon-only button (remote, mouse and touch). */
-export function IconButton({ icon, label, onPress, disabled, active }: { icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean }) {
+export function IconButton({
+  icon,
+  label,
+  onPress,
+  disabled,
+  active,
+  focusRef,
+}: {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  active?: boolean;
+  /** Lets the screen move the remote focus here. */
+  focusRef?: Ref<SpatialNavigationNodeRef>;
+}) {
   return (
-    <Focusable accessibilityLabel={label} onSelect={disabled ? undefined : onPress}>
+    <Focusable accessibilityLabel={label} onSelect={disabled ? undefined : onPress} focusRef={focusRef}>
       {({ isFocused }) => (
         <View style={[styles.button, active && styles.active, isFocused && styles.focused, disabled && styles.disabled]}>
           <Icon name={icon} size={18} color={active ? colors.accentLight : colors.text} />
