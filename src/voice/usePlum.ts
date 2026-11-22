@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parseBest, type Heard } from '../core/voice';
 import { usePrefs } from '../data/prefs';
 import { activePlaylist, usePlaylists } from '../data/store';
-import { resolvePlay, type Resolution } from '../data/voice';
+import { resolvePlay, type PlumTarget, type Resolution } from '../data/voice';
 import { useI18n } from '../ui/i18n';
 import { useLatest } from '../ui/useQuery';
+import { plum } from './plum';
+import { playTarget } from './playTarget';
 import { useSpeech, type SpeechProblem } from './useSpeech';
 
 /** Where Plum is: listening, thinking about what was said, or showing the answer. */
@@ -27,6 +29,8 @@ export interface Plum {
   listen: () => void;
   /** Ends listening early and uses what was heard. */
   stop: () => void;
+  /** Closes Plum and plays a found item. */
+  play: (target: PlumTarget) => void;
 }
 
 /** Listens as soon as it mounts (the panel opening is the "I'm talking now"). */
@@ -35,6 +39,15 @@ export function usePlum(): Plum {
   const playlist = activePlaylist(usePlaylists());
   const { epgOffsetHours } = usePrefs();
   const [phase, setPhase] = useState<PlumPhase>({ kind: 'listening' });
+
+  const play = useCallback(
+    (target: PlumTarget) => {
+      if (!playlist) return;
+      plum.close();
+      playTarget(playlist, target).catch((error: unknown) => console.warn('[plum] could not play', error instanceof Error ? error.message : error));
+    },
+    [playlist],
+  );
   // Answers to an older question are dropped (spoke again while it was still looking).
   const run = useRef(0);
 
@@ -47,9 +60,11 @@ export function usePlum(): Plum {
       if (command.kind !== 'play') return setPhase({ kind: 'command', heard });
       if (!playlist) return setPhase({ kind: 'no-playlist', heard });
       setPhase({ kind: 'thinking', heard });
-      resolvePlay(playlist, command, { offsetHours: epgOffsetHours })
+      resolvePlay(playlist, command, { offsetHours: epgOffsetHours, lang })
         .then((resolution) => {
           if (id !== run.current) return;
+          // Sure: play it at once. Unsure: show the choices.
+          if (resolution.best && resolution.sure) return play(resolution.best);
           setPhase(resolution.best ? { kind: 'found', heard, resolution } : { kind: 'not-found', heard });
         })
         .catch((error: unknown) => {
@@ -57,7 +72,7 @@ export function usePlum(): Plum {
           if (id === run.current) setPhase({ kind: 'not-found', heard });
         });
     },
-    [playlist, epgOffsetHours],
+    [playlist, epgOffsetHours, lang, play],
   );
 
   const speech = useSpeech(lang, onFinal);
@@ -77,5 +92,5 @@ export function usePlum(): Plum {
   const problem = speech.state === 'error' ? speech.problem : null;
   const shown = useMemo<PlumPhase>(() => (problem ? { kind: 'problem', problem } : phase), [problem, phase]);
 
-  return { phase: shown, heard: speech.heard, listen, stop: speech.stop };
+  return { phase: shown, heard: speech.heard, listen, stop: speech.stop, play };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useLockSpatialNavigation } from 'react-tv-space-navigation';
 import { dayLabel } from '../catchup/useCatchup';
@@ -15,6 +15,11 @@ import { colors, radius } from '../ui/tokens';
 import { useTimeFormat } from '../ui/useTimeFormat';
 import { plum } from './plum';
 import { usePlum, type PlumPhase } from './usePlum';
+
+/** Found items shown at once; the list scrolls with the focus. */
+const VISIBLE = 5;
+/** After a key press the mouse pointer can't take the focus for this long. */
+const HOVER_AFTER_KEY_MS = 800;
 
 /** Touch phones show no focus ring; TV and desktop (remote / keyboard) do. */
 const REMOTE = Platform.OS === 'web' || Platform.isTV;
@@ -91,7 +96,7 @@ function debugText(phase: PlumPhase): string | null {
  */
 export function PlumPanel() {
   const { t } = useI18n();
-  const { phase, heard, listen, stop } = usePlum();
+  const { phase, heard, listen, stop, play } = usePlum();
   const line = useTargetLine();
   const { lock, unlock } = useLockSpatialNavigation();
   const candidates = phase.kind === 'found' ? phase.resolution.candidates : [];
@@ -117,20 +122,29 @@ export function PlumPanel() {
   // Rows: the candidates, then the button row.
   const onButtons = row >= candidates.length;
 
+  // The list scrolls under a still mouse pointer, which "hovers" items: right after a key, hovering doesn't move the focus.
+  const lastKey = useRef(0);
+  const hover = (change: Parameters<typeof move>[0]) => {
+    if (Date.now() - lastKey.current > HOVER_AFTER_KEY_MS) move(change);
+  };
+
   usePlayerKeys((key) => {
+    lastKey.current = Date.now();
     if (key === 'back') plum.close();
     else if (key === 'up') move({ row: (r) => Math.max(0, r - 1) });
     else if (key === 'down') move({ row: (r) => Math.min(candidates.length, r + 1) });
     else if (key === 'left' && onButtons) move({ button: (b) => Math.max(0, b - 1) });
     else if (key === 'right' && onButtons) move({ button: (b) => Math.min(buttons.length - 1, b + 1) });
     else if (key === 'select') {
-      // Playing a found item comes in the next step; for now OK on an item listens again.
       if (onButtons) buttons[button]?.onPress();
-      else listen();
+      else if (candidates[row]) play(candidates[row]);
     }
   });
 
   const debug = debugText(phase);
+  // Keep the focused item in view, a little above the middle.
+  const offset = Math.max(0, Math.min(Math.min(row, candidates.length - 1) - 2, candidates.length - VISIBLE));
+  const shownItems = candidates.slice(offset, offset + VISIBLE);
 
   return (
     <View style={styles.backdrop}>
@@ -147,12 +161,17 @@ export function PlumPanel() {
 
         {candidates.length ? (
           <View style={styles.list}>
-            {phase.kind === 'found' && !phase.resolution.sure ? <Text size={14} color={colors.textFaint}>{t('plum.pick')}</Text> : null}
-            {candidates.map((target, i) => {
+            {phase.kind === 'found' && !phase.resolution.sure ? (
+              <Text size={14} color={colors.textFaint}>
+                {candidates.length > VISIBLE ? `${t('plum.pick')}  ${Math.min(row, candidates.length - 1) + 1} / ${candidates.length}` : t('plum.pick')}
+              </Text>
+            ) : null}
+            {shownItems.map((target, at) => {
+              const i = offset + at;
               const { icon, title, detail } = line(target);
               const on = REMOTE && !onButtons && i === row;
               return (
-                <Pressable key={`${target.kind}-${i}`} onPress={listen} onHoverIn={() => move({ row: () => i })} style={[styles.item, on && styles.focused]} accessibilityRole="button" accessibilityLabel={title}>
+                <Pressable key={`${target.kind}-${i}`} onPress={() => play(target)} onHoverIn={() => hover({ row: () => i })} style={[styles.item, on && styles.focused]} accessibilityRole="button" accessibilityLabel={title}>
                   <Icon name={icon} size={20} color={i === 0 ? colors.accentLight : colors.textFaint} />
                   <View style={styles.itemText}>
                     <Text weight="semibold" size={16} numberOfLines={1}>{title}</Text>
@@ -177,7 +196,7 @@ export function PlumPanel() {
                 accessibilityRole="button"
                 accessibilityLabel={b.label}
                 onPress={b.onPress}
-                onHoverIn={() => move({ row: () => candidates.length, button: () => i })}
+                onHoverIn={() => hover({ row: () => candidates.length, button: () => i })}
                 style={[styles.button, primary ? styles.primary : styles.secondary, on && styles.focused]}
               >
                 <Icon name={b.icon} size={18} color={fg} />
