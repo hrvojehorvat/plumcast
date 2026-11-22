@@ -12,14 +12,49 @@ describe('createTvPressFilter', () => {
     const press = createTvPressFilter();
     expect(press({ eventType: 'down', eventKeyAction: 0 })).toBe('down');
     expect(press({ eventType: 'down', eventKeyAction: 1 })).toBeNull();
-    expect(press({ eventType: 'select', eventKeyAction: 0 })).toBe('select');
+  });
+
+  it('sends OK when it is let go', () => {
+    const press = createTvPressFilter();
+    expect(press({ eventType: 'down', eventKeyAction: 0 })).toBe('down');
+    expect(press({ eventType: 'select', eventKeyAction: 0 })).toBeNull();
+    expect(press({ eventType: 'select', eventKeyAction: 1 })).toBe('select');
+  });
+
+  it('sends a held OK only as long select, never also as select', () => {
+    let t = 1000;
+    const press = createTvPressFilter(() => t);
+    expect(press({ eventType: 'select', eventKeyAction: 0 })).toBeNull();
+    t += 600;
+    expect(press({ eventType: 'longSelect', eventKeyAction: 0 })).toBe('longSelect');
+    t += 400;
+    expect(press({ eventType: 'longSelect', eventKeyAction: 1 })).toBeNull();
+    t += 300;
+    expect(press({ eventType: 'select', eventKeyAction: 0 })).toBeNull();
+    expect(press({ eventType: 'select', eventKeyAction: 1 })).toBe('select');
+  });
+
+  it('ignores an OK key-up whose key-down came before the filter saw it', () => {
+    const press = createTvPressFilter();
+    expect(press({ eventType: 'down', eventKeyAction: 0 })).toBe('down');
     expect(press({ eventType: 'select', eventKeyAction: 1 })).toBeNull();
   });
 
-  it('repeats a held direction and keeps long select apart', () => {
+  it('counts an OK the remote sends twice once', () => {
+    let t = 1000;
+    const press = createTvPressFilter(() => t);
+    expect(press({ eventType: 'select', eventKeyAction: 0 })).toBeNull();
+    t += 30;
+    expect(press({ eventType: 'select', eventKeyAction: 1 })).toBe('select');
+    t += 30;
+    expect(press({ eventType: 'select', eventKeyAction: 0 })).toBeNull();
+    t += 30;
+    expect(press({ eventType: 'select', eventKeyAction: 1 })).toBeNull();
+  });
+
+  it('repeats a held direction', () => {
     const press = createTvPressFilter();
     expect(press({ eventType: 'longDown', eventKeyAction: 0 })).toBe('down');
-    expect(press({ eventType: 'longSelect', eventKeyAction: 0 })).toBe('longSelect');
     expect(press({ eventType: 'longDown', eventKeyAction: 1 })).toBeNull();
   });
 

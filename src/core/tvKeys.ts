@@ -12,15 +12,24 @@ export const DUPLICATE_MS = 120;
  * Some remotes send one press twice in a row; the same key within DUPLICATE_MS counts once (a move
  * must never skip a column).
  *
+ * OK acts when it is let go, not on key-down: held, it turns into `longSelect` (native, after 1 s, see
+ * plugins/withTvRemote.js), and a select already sent on key-down would open the focused item first.
+ * So an OK key-down only arms the press; its key-up sends `select`, unless `longSelect` came in between.
+ *
  * One filter for the whole app (see src/ui/remoteKeys.ts): a listener that starts mid-press (a dialog opened
  * by OK) must not take that press's key-up for a new press.
  */
 export function createTvPressFilter(now: () => number = Date.now) {
   let sawKeyDown = false;
   let last: { type: string; at: number } | null = null;
+  let selectArmed = false;
   return (event: TvKeyEvent): string | null => {
     if (event.eventKeyAction === 0) sawKeyDown = true;
-    else if (event.eventKeyAction === 1 && sawKeyDown) return null;
+    else if (event.eventKeyAction === 1 && sawKeyDown) {
+      if (event.eventType !== 'select' || !selectArmed) return null;
+      selectArmed = false;
+      return 'select';
+    }
     const raw = event.eventType;
     const type = /^long(Up|Down|Left|Right)$/.test(raw) ? raw.slice(4).toLowerCase() : raw;
     if (event.eventKeyAction === 0 || event.eventKeyAction === 1) {
@@ -28,6 +37,11 @@ export function createTvPressFilter(now: () => number = Date.now) {
       if (last && last.type === type && at - last.at < DUPLICATE_MS) return null;
       last = { type, at };
     }
+    if (event.eventKeyAction === 0 && type === 'select') {
+      selectArmed = true;
+      return null;
+    }
+    if (type === 'longSelect') selectArmed = false;
     return type;
   };
 }

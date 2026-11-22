@@ -18,6 +18,8 @@
 //      react-native-tvos turns a held key into one long press (a single `longDown`, then nothing until the
 //      key is let go), so each arrow repeat is sent as a short new press: key-up, then a fresh key-down.
 //      JS ignores the key-up (src/core/tvKeys.ts). OK and the other keys keep the long-press behaviour.
+//    - OK has its own, longer hold (LONG_OK_MS): held that long it becomes `longSelect` (opens Plum). A shorter
+//      hold stays a plain OK, sent when it is let go (src/core/tvKeys.ts).
 //    Back, Home, volume and power keep Android's handling (Back reaches JS through BackHandler).
 //
 // 3. MainActivity, on TVs only: the app is laid out on a screen 960 points wide, whatever density the TV
@@ -29,6 +31,7 @@ const { withMainActivity, withMainApplication } = require('expo/config-plugins')
 const KEY_DOWN = 'com.facebook.react.config.ReactFeatureFlags.enableKeyDownEvents = true';
 const MARK = '// Plumcast TV remote';
 const HOLD_MS = 600;
+const LONG_OK_MS = 1000;
 const REPEAT_MS = 150;
 const ACTIVITY_CODE = `
   ${MARK} (see plugins/withTvRemote.js).
@@ -92,6 +95,7 @@ const ACTIVITY_CODE = `
   }
 
   private val PLUMCAST_HOLD_MS = ${HOLD_MS}L
+  private val PLUMCAST_LONG_OK_MS = ${LONG_OK_MS}L
   private val PLUMCAST_REPEAT_MS = ${REPEAT_MS}L
   private var plumcastLastRepeat = 0L
 
@@ -116,6 +120,12 @@ const ACTIVITY_CODE = `
   private fun plumcastIsArrow(code: Int): Boolean =
     code == android.view.KeyEvent.KEYCODE_DPAD_UP || code == android.view.KeyEvent.KEYCODE_DPAD_DOWN ||
       code == android.view.KeyEvent.KEYCODE_DPAD_LEFT || code == android.view.KeyEvent.KEYCODE_DPAD_RIGHT
+
+  private fun plumcastIsOk(code: Int): Boolean = when (code) {
+    android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER,
+    android.view.KeyEvent.KEYCODE_NUMPAD_ENTER, android.view.KeyEvent.KEYCODE_BUTTON_SELECT -> true
+    else -> false
+  }
 
   /** Ends typing: closes the keyboard and gives focus back to the React root (the field blurs in JS). */
   private fun plumcastLeaveField(field: android.view.View, root: android.view.View) {
@@ -156,7 +166,8 @@ const ACTIVITY_CODE = `
     if (focused !== root) root.requestFocus()
     // A held key repeats: drop the repeats of a normal (firm, bouncy) press, keep a deliberate hold.
     if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount > 0) {
-      if (event.eventTime - event.downTime < PLUMCAST_HOLD_MS) return true
+      val hold = if (plumcastIsOk(code)) PLUMCAST_LONG_OK_MS else PLUMCAST_HOLD_MS
+      if (event.eventTime - event.downTime < hold) return true
       if (plumcastIsArrow(code)) {
         // A held arrow: one move every PLUMCAST_REPEAT_MS, each as a short new press (see the comment above).
         if (event.eventTime - plumcastLastRepeat < PLUMCAST_REPEAT_MS) return true

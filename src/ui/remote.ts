@@ -9,10 +9,12 @@ const KEY_MAP: Record<string, Directions> = {
   left: Directions.LEFT,
   right: Directions.RIGHT,
   select: Directions.ENTER,
-  longSelect: Directions.LONG_ENTER,
 };
 
-/** Long-press OK on a screen (no player or dialog open): opens Plum when set. Returns false to pass it on. */
+/**
+ * Long-press OK on a screen (no player or dialog open): opens Plum when set. Returns false to pass it on;
+ * unhandled, a held OK is a plain OK (OK acts on release, src/core/tvKeys.ts, so nothing else would fire).
+ */
 let longSelect: (() => boolean) | null = null;
 export function setLongSelect(handler: (() => boolean) | null) {
   longSelect = handler;
@@ -25,7 +27,7 @@ export function configureRemote() {
       setKeyHandler(callback);
       return remoteKeys.setBase((type) => {
         if (type === 'longSelect' && longSelect?.()) return;
-        const direction = KEY_MAP[type];
+        const direction = KEY_MAP[type === 'longSelect' ? 'select' : type];
         if (!direction) return;
         noteKey(direction);
         callback(direction);
