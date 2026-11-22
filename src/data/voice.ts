@@ -14,8 +14,9 @@ import {
   sameTitle,
   searchVariants,
   bareTitle,
-  soundKey,
-  soundScore,
+  soundMatch,
+  soundOf,
+  type Sound,
   titleScore,
   whenWindow,
   withoutCountry,
@@ -293,7 +294,8 @@ interface SoundEntry {
   kind: 'movie' | 'series';
   id: string;
   name: string;
-  key: string;
+  /** The bare title's sound key and word count, so a search doesn't work them out again. */
+  sound: Sound;
 }
 /** Sound keys of every movie and series name, built once per playlist sync, in memory. */
 let soundIndex: { of: string; entries: Promise<SoundEntry[]> } | null = null;
@@ -309,7 +311,7 @@ async function buildSoundEntries(playlistId: number): Promise<SoundEntry[]> {
   const out: SoundEntry[] = [];
   const add = async (kind: SoundEntry['kind'], list: { id: string; name: string }[]) => {
     for (const item of list) {
-      out.push({ kind, id: item.id, name: item.name, key: soundKey(bareTitle(item.name)) });
+      out.push({ kind, id: item.id, name: item.name, sound: soundOf(bareTitle(item.name)) });
       if (out.length % 500 === 0) await breathe();
     }
   };
@@ -340,17 +342,26 @@ export function warmUpPlum(playlist: Playlist) {
 
 /** Movies and series whose names sound like what was heard (offered, never played on their own). */
 async function findBySound(playlist: Playlist, title: string, only: 'movie' | 'series' | null, options: ResolveOptions): Promise<Ranked<PlumTarget>[]> {
-  const key = soundKey(title);
-  if (key.length < 2) return [];
+  const said = soundOf(title);
+  if (said.key.length < 2) return [];
   const entries = await soundEntries(playlist);
   check(options);
-  const hits = entries
-    .filter((e) => (!only || e.kind === only) && (e.key === key || e.key.length >= 4))
-    .map((e) => ({ e, score: soundScore(title, e.name) }))
-    .filter((h) => h.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, MAX_SOUND);
-  trace(`sounds like "${title}" (${key})`, hits.map((h) => h.e.name));
+  // Through every name in steps with breaks: the list on screen stays usable meanwhile.
+  const breathe = createBreather();
+  const found: { e: SoundEntry; score: number }[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    if (!only || e.kind === only) {
+      const score = soundMatch(said, e.sound);
+      if (score > 0) found.push({ e, score });
+    }
+    if (i % 2_000 === 0) {
+      await breathe();
+      check(options);
+    }
+  }
+  const hits = found.sort((a, b) => b.score - a.score).slice(0, MAX_SOUND);
+  trace(`sounds like "${title}" (${said.key})`, hits.map((h) => h.e.name));
   const items = await Promise.all(
     hits.map(async ({ e, score }): Promise<Ranked<PlumTarget> | null> => {
       if (e.kind === 'movie') {

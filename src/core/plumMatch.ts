@@ -330,12 +330,27 @@ export function soundKey(text: string): string {
  * their own.
  */
 export function soundScore(said: string, name: string): number {
-  const bare = bareTitle(name);
-  const a = soundKey(said);
-  const b = soundKey(bare);
-  if (a.length < 2 || !b) return 0;
-  const words = (t: string) => clean(t).split(' ').filter(Boolean).length;
-  if (Math.abs(words(said) - words(bare)) > 1) return 0;
+  return soundMatch(soundOf(said), soundOf(bareTitle(name)));
+}
+
+/** A title's sound key and word count, worked out once (Plum's index keeps one per catalog name). */
+export interface Sound {
+  key: string;
+  words: number;
+}
+
+export function soundOf(text: string): Sound {
+  return { key: soundKey(text), words: clean(text).split(' ').filter(Boolean).length };
+}
+
+/**
+ * `soundScore` on prepared sounds: cheap enough to run over 100k catalog names. The quick checks
+ * (word count, key length) come first, the edit distance only for the few left.
+ */
+export function soundMatch(said: Sound, name: Sound): number {
+  const a = said.key;
+  const b = name.key;
+  if (a.length < 2 || !b || Math.abs(said.words - name.words) > 1) return 0;
   if (a === b) return 0.75;
-  return a.length >= 4 && editsWithin(a, b, 1) ? 0.7 : 0;
+  return a.length >= 4 && Math.abs(a.length - b.length) <= 1 && editsWithin(a, b, 1) ? 0.7 : 0;
 }
