@@ -30,6 +30,8 @@ interface Line {
   icon: IconName;
   title: string;
   detail: string;
+  /** A small label next to the title ("Category"). */
+  tag?: string;
 }
 
 function useTargetLine(): (target: PlumTarget) => Line {
@@ -52,6 +54,13 @@ function useTargetLine(): (target: PlumTarget) => Line {
           season !== null && episode !== null ? t('plum.episode', { season, episode }) : season !== null ? t('plum.season', { season }) : t('plum.series');
         return { icon: 'series', title: target.series.name, detail };
       }
+      case 'category':
+        return {
+          icon: target.section,
+          title: target.name,
+          detail: `${t(`nav.${target.section}` as MessageKey)} · ${target.count}`,
+          tag: t('plum.category'),
+        };
     }
   };
 }
@@ -168,13 +177,16 @@ export function PlumPanel() {
             ) : null}
             {shownItems.map((target, at) => {
               const i = offset + at;
-              const { icon, title, detail } = line(target);
+              const { icon, title, detail, tag } = line(target);
               const on = REMOTE && !onButtons && i === row;
               return (
                 <Pressable key={`${target.kind}-${i}`} onPress={() => play(target)} onHoverIn={() => hover({ row: () => i })} style={[styles.item, on && styles.focused]} accessibilityRole="button" accessibilityLabel={title}>
                   <Icon name={icon} size={20} color={i === 0 ? colors.accentLight : colors.textFaint} />
                   <View style={styles.itemText}>
-                    <Text weight="semibold" size={16} numberOfLines={1}>{title}</Text>
+                    <View style={styles.titleRow}>
+                      <Text weight="semibold" size={16} numberOfLines={1} style={styles.title}>{title}</Text>
+                      {tag ? <Text size={11} weight="semibold" color={colors.accentLight} style={styles.tag}>{tag}</Text> : null}
+                    </View>
                     <Text size={13} color={colors.textFaint} numberOfLines={1}>{detail}</Text>
                   </View>
                 </Pressable>
@@ -282,6 +294,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.glassStrong,
   },
   itemText: { flex: 1, gap: 2 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  title: { flexShrink: 1 },
+  tag: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: radius.pill, overflow: 'hidden', backgroundColor: colors.accentSoft },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   button: {
     height: 46,

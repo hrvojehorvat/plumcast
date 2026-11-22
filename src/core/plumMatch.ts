@@ -1,7 +1,7 @@
 import { foldSearch } from './search';
 import type { When } from './voice';
 import type { Lang } from './i18n';
-import { COUNTRIES, PARTS_OF_DAY } from './voiceWords';
+import { CATEGORY_KINDS, COUNTRIES, PARTS_OF_DAY, type CategorySection } from './voiceWords';
 
 /**
  * Matching what Plum heard against the catalog: how well a spoken title fits a name, which time
@@ -199,4 +199,84 @@ export function withoutCountry(said: string): string {
   const words = clean(said).split(' ').filter(Boolean);
   const rest = words.filter((w) => !countries.has(w));
   return (rest.length ? rest : words).join(' ');
+}
+
+// ---------------------------------------------------------------- categories
+
+/** Each section's words, folded, longest first; replaced by one token per section for matching. */
+const KIND_WORDS = (Object.entries(CATEGORY_KINDS) as [CategorySection, Record<string, readonly string[]>][])
+  .flatMap(([section, words]) => Object.values(words).flat().map((w) => ({ section, word: clean(w) })))
+  .sort((a, b) => b.word.length - a.word.length);
+const kindToken = (section: CategorySection) => `kind${section}`;
+
+/**
+ * Country words that mean one country only, folded: "hrvatska" and "croatia" become one token.
+ * Short codes ("hr") and shared ones ("ex yu", "balkan") stay as they are.
+ */
+const COUNTRY_WORDS = (() => {
+  const count = new Map<string, number>();
+  const lists = COUNTRIES.map((c) => [...new Set([...c.said, ...c.categories].map(clean).filter((w) => w.length > 3 && !w.includes(' ')))]);
+  lists.forEach((l) => l.forEach((w) => count.set(w, (count.get(w) ?? 0) + 1)));
+  return lists.flatMap((l, i) => l.filter((w) => count.get(w) === 1).map((word) => ({ word, token: `country${i}` })));
+})();
+const isKind = (word: string) => word.startsWith('kind');
+
+/** "Filmovi 2026" and "EN | Movies 2026" both become "kindmovies 2026"; "Hrvatska" and "Croatia" one country token. */
+function sameKinds(text: string): string {
+  let out = ` ${clean(text)} `;
+  for (const { section, word } of KIND_WORDS) out = out.split(` ${word} `).join(` ${kindToken(section)} `);
+  for (const { word, token } of COUNTRY_WORDS) out = out.split(` ${word} `).join(` ${token} `);
+  return out.trim().replace(/\s+/g, ' ');
+}
+
+/** The section named in what was said ("filmovi 2026" → movies), or null. */
+export function saidSection(phrase: string): CategorySection | null {
+  const words = sameKinds(phrase).split(' ');
+  return (Object.keys(CATEGORY_KINDS) as CategorySection[]).find((s) => words.includes(kindToken(s))) ?? null;
+}
+
+/** Edits (insert, delete, change, swap) between two words, stopping above `max`. */
+function editsWithin(a: string, b: string, max: number): boolean {
+  if (Math.abs(a.length - b.length) > max) return false;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  let before: number[] = prev;
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let v = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, before[j - 2] + 1);
+      row.push(v);
+    }
+    if (Math.min(...row) > max) return false;
+    before = prev;
+    prev = row;
+  }
+  return prev[b.length] <= max;
+}
+
+/** Spellings close enough to be the same word ("horor" / "horror"); longer words may differ more. */
+const nearlySame = (said: string, name: string) => said.length >= 5 && editsWithin(said, name, said.length >= 9 ? 2 : 1);
+
+/** Lowest score of a category whose words were all found (some only roughly). */
+const FOUND_ALL = 0.75;
+
+/**
+ * 0…1: how well a category name fits what was said, read from the playlist's own category names.
+ * Kind words count alike in every language and, when the name has none, only choose the section
+ * ("horror movies" → the movie category "Horror"). Every other word said must be in the name,
+ * spelled about the same ("horor" ~ "Horror", "exyu" ~ "EX-YU", "hrvatska" ~ "Croatia").
+ */
+export function categoryScore(phrase: string, name: string): number {
+  const n = sameKinds(name);
+  const nameWords = n.split(' ');
+  const nameCompact = n.replace(/ /g, '');
+  const words = sameKinds(phrase)
+    .split(' ')
+    .filter((w) => w && !(isKind(w) && !nameWords.includes(w)));
+  if (!words.length) return 0;
+  const inName = (w: string) =>
+    nameWords.some((nw) => nw === w || (w.length >= 4 && nw.startsWith(w)) || nearlySame(w, nw)) || (w.length >= 4 && nameCompact.includes(w));
+  if (!words.every(inName)) return 0;
+  return Math.max(titleScore(words.join(' '), n), FOUND_ALL);
 }

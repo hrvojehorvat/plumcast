@@ -1,6 +1,7 @@
 import { canReplay, DAY_MS } from '../core/catchup';
 import {
   categoryMatches,
+  categoryScore,
   channelKey,
   channelScore,
   countryWords,
@@ -8,6 +9,7 @@ import {
   MIN_TITLE_SCORE,
   rankByName,
   rankProgrammes,
+  saidSection,
   sameTitle,
   searchVariants,
   titleScore,
@@ -18,11 +20,12 @@ import {
 } from '../core/plumMatch';
 import type { Lang } from '../core/i18n';
 import type { PlayCommand } from '../core/voice';
+import type { CategorySection } from '../core/voiceWords';
 import { channelArchive } from './catchup';
 import { ALL, channelByNumber, FAVORITES, listChannels, listLiveCategories, RECENT, searchProgrammes, type AiredItem, type Channel } from './live';
-import { listMovies, type MovieItem } from './movies';
+import { listMovieCategories, listMovies, type MovieItem } from './movies';
 import type { Playlist } from './playlists';
-import { listSeries, type SeriesItem } from './series';
+import { listSeries, listSeriesCategories, type SeriesItem } from './series';
 
 /**
  * Plum: finds what a parsed "play …" command means in the stored catalog and guide. Reads only
@@ -35,7 +38,9 @@ export type PlumTarget =
   | { kind: 'live'; channel: Channel; fromGuide?: boolean }
   | { kind: 'catchup'; channel: Channel; programme: AiredItem['programme'] }
   | { kind: 'movie'; movie: MovieItem }
-  | { kind: 'series'; series: SeriesItem; season: number | null; episode: number | null };
+  | { kind: 'series'; series: SeriesItem; season: number | null; episode: number | null }
+  /** A category of Live TV, Movies or Series ("filmovi 2026"): opens it like the menu would. */
+  | { kind: 'category'; section: CategorySection; id: string; name: string; count: number };
 
 export interface Resolution {
   /** What to play; null when nothing fits. */
@@ -90,6 +95,8 @@ function sameTarget(a: PlumTarget, b: PlumTarget): boolean {
       return a.movie.id === (b as typeof a).movie.id;
     case 'series':
       return a.series.id === (b as typeof a).series.id;
+    case 'category':
+      return a.section === (b as typeof a).section && a.id === (b as typeof a).id;
   }
 }
 
@@ -100,8 +107,10 @@ function finish(ranked: Ranked<PlumTarget>[]): Resolution {
   for (const r of sorted) if (!unique.some((u) => sameTarget(u.item, r.item))) unique.push(r);
   if (!unique.length) return NOTHING;
   // Programmes from the guide play at once only when there is just one airing; else the user picks.
+  // A category is always shown first, never opened on its own.
   const airings = unique.filter((r) => r.item.kind === 'catchup' || (r.item.kind === 'live' && r.item.fromGuide)).length;
-  const sure = airings > 1 ? false : isSure(unique, sameTarget);
+  const hasCategory = unique.some((r) => r.item.kind === 'category');
+  const sure = airings > 1 || hasCategory ? false : isSure(unique, sameTarget);
   return { best: unique[0].item, candidates: unique.slice(0, MAX_CANDIDATES).map((r) => r.item), sure };
 }
 
@@ -227,6 +236,30 @@ async function channelReplays(playlist: Playlist, channel: Channel, window: Time
     .map((p) => ({ item: { kind: 'catchup' as const, channel, programme: p }, score: 0.7 - Math.abs(p.start - window.around) / DAY_MS }));
 }
 
+/** Below this a category name isn't the one meant. */
+const CATEGORY_SCORE = 0.7;
+/** A programme or movie with the same fit comes before a category. */
+const CATEGORY_PENALTY = 0.02;
+
+/** Categories of Live TV, Movies and Series whose names fit; only `section`'s when one was said. */
+async function findCategories(playlistId: number, phrase: string): Promise<Ranked<PlumTarget>[]> {
+  const only = saidSection(phrase);
+  const [live, movies, series] = await Promise.all([
+    !only || only === 'live' ? listLiveCategories(playlistId).catch(() => []) : [],
+    !only || only === 'movies' ? listMovieCategories(playlistId).catch(() => []) : [],
+    !only || only === 'series' ? listSeriesCategories(playlistId).catch(() => []) : [],
+  ]);
+  const lists: [CategorySection, { id: string; name: string; count: number }[]][] = [['live', live], ['movies', movies], ['series', series]];
+  const out: Ranked<PlumTarget>[] = [];
+  for (const [section, list] of lists) {
+    for (const c of list) {
+      const score = categoryScore(phrase, c.name);
+      if (score >= CATEGORY_SCORE && c.count > 0) out.push({ item: { kind: 'category', section, id: c.id, name: c.name, count: c.count }, score: score - CATEGORY_PENALTY });
+    }
+  }
+  return out;
+}
+
 // ---- the command
 
 export async function resolvePlay(playlist: Playlist, cmd: PlayCommand, options: ResolveOptions): Promise<Resolution> {
@@ -235,19 +268,24 @@ export async function resolvePlay(playlist: Playlist, cmd: PlayCommand, options:
   const id = playlist.id;
   const title = cmd.title;
 
+  if (cmd.prefer === 'category') return finish(await findCategories(id, cmd.phrase));
+  // "Film 2026" said like a kind: its categories count too.
+  const categories = cmd.prefer === 'catchup' ? [] : await findCategories(id, cmd.phrase);
+
   if (cmd.prefer === 'live') {
     const channels = await findChannels(id, title);
-    return finish(channels.map((r) => ({ item: { kind: 'live', channel: r.item }, score: r.score })));
+    return finish([...channels.map((r) => ({ item: { kind: 'live' as const, channel: r.item }, score: r.score })), ...categories]);
   }
   if (cmd.prefer === 'movie') {
     const movies = await Promise.all(searchVariants(title).map((q) => listMovies(id, ALL, q, 'az', PER_QUERY)));
-    return finish(rankByName(movies.flat(), title, (m) => m.name).map((r) => ({ item: { kind: 'movie', movie: r.item }, score: r.score })));
+    return finish([...rankByName(movies.flat(), title, (m) => m.name).map((r) => ({ item: { kind: 'movie' as const, movie: r.item }, score: r.score })), ...categories]);
   }
   if (cmd.prefer === 'series') {
     const series = await Promise.all(searchVariants(title).map((q) => listSeries(id, ALL, q, 'az', PER_QUERY)));
-    return finish(
-      rankByName(series.flat(), title, (s) => s.name).map((r) => ({ item: { kind: 'series', series: r.item, season: cmd.season, episode: cmd.episode }, score: r.score })),
-    );
+    return finish([
+      ...rankByName(series.flat(), title, (s) => s.name).map((r) => ({ item: { kind: 'series' as const, series: r.item, season: cmd.season, episode: cmd.episode }, score: r.score })),
+      ...categories,
+    ]);
   }
 
   const window: TimeWindow = cmd.when ? whenWindow(cmd.when, now) : { from: now - BACK_MS, to: now + 60_000, around: now };
@@ -294,5 +332,6 @@ export async function resolvePlay(playlist: Playlist, cmd: PlayCommand, options:
   }
   for (const r of rankByName(movies, title, (m) => m.name)) all.push({ item: { kind: 'movie', movie: r.item }, score: r.score });
   for (const r of rankByName(series, title, (s) => s.name)) all.push({ item: { kind: 'series', series: r.item, season: null, episode: null }, score: r.score });
+  all.push(...categories);
   return finish(all);
 }

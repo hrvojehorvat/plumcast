@@ -1,10 +1,13 @@
 import { router } from 'expo-router';
+import { NAV_ITEMS } from '../core/nav';
 import { resumeAt } from '../core/vod';
 import { listChannels, type Channel } from '../data/live';
 import type { Playlist } from '../data/playlists';
 import type { PlumTarget } from '../data/voice';
 import { movieTitle } from '../movies/useMovies';
 import { livePlayer, moviePlayer } from '../player/store';
+import { keyMark, openRight, sectionEntry } from '../ui/lastKey';
+import { requestCategory } from '../ui/pendingCategory';
 
 /** The channel's own category, so channel up/down zaps like when it's opened from Live TV. */
 async function zapList(playlist: Playlist, channel: Channel): Promise<Channel[]> {
@@ -20,7 +23,8 @@ async function zapList(playlist: Playlist, channel: Channel): Promise<Channel[]>
 /**
  * Plays what Plum found, the same way the screens do: live and replays in the live player
  * (the replay player checks the recording), movies from where they were left. A series opens
- * its page (episodes come from the server there).
+ * its page (episodes come from the server there). A category opens its section with it selected
+ * and the focus in it, like the menu does.
  */
 export async function playTarget(playlist: Playlist, target: PlumTarget): Promise<void> {
   switch (target.kind) {
@@ -38,5 +42,13 @@ export async function playTarget(playlist: Playlist, target: PlumTarget): Promis
     case 'series':
       router.push(`/series/${encodeURIComponent(target.series.id)}`);
       return;
+    case 'category': {
+      const href = NAV_ITEMS.find((i) => i.key === target.section)?.href ?? '/';
+      requestCategory(target.section, target.id);
+      router.replace(href);
+      // TV / wide: into the section's category list once it's there (as from the menu).
+      openRight(keyMark(), () => (sectionEntry(target.section)?.() ? 'done' : 'wait'));
+      return;
+    }
   }
 }

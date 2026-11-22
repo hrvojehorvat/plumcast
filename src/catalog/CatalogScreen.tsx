@@ -26,6 +26,7 @@ import { Text } from '../ui/Text';
 import { colors, radius, tv } from '../ui/tokens';
 import { setBackStep, whenEnteredSideways } from '../ui/lastKey';
 import { useLatest } from '../ui/useQuery';
+import { usePendingCategory } from '../ui/pendingCategory';
 import { useOpenRight, useSectionEntry } from '../ui/useOpenRight';
 import { useWideLayout } from '../ui/useWideLayout';
 import { POSTER_TEXT } from './Poster';
@@ -105,6 +106,7 @@ function useCatalog<T extends { id: string; name: string }>(section: CatalogSect
     setChosen(id);
     setQueryState('');
   };
+  usePendingCategory(section.key, select);
   const setSort = (value: CatalogSort) => {
     memory.sort = value;
     setSortState(value);

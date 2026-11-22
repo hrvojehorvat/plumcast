@@ -315,6 +315,7 @@ export const en = {
   'plum.close': "Close",
   'plum.liveNow': "Live now",
   'plum.movie': "Movie",
+  'plum.category': "Category",
   'plum.series': "Series",
   'plum.episode': "Season {season}, episode {episode}",
   'plum.season': "Season {season}",

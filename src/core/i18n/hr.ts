@@ -317,6 +317,7 @@ export const hr: Messages = {
   'plum.close': "Zatvori",
   'plum.liveNow': "Uživo",
   'plum.movie': "Film",
+  'plum.category': "Kategorija",
   'plum.series': "Serija",
   'plum.episode': "Sezona {season}, epizoda {episode}",
   'plum.season': "Sezona {season}",

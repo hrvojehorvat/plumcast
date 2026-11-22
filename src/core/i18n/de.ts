@@ -317,6 +317,7 @@ export const de: Messages = {
   'plum.close': "Schließen",
   'plum.liveNow': "Jetzt live",
   'plum.movie': "Film",
+  'plum.category': "Kategorie",
   'plum.series': "Serie",
   'plum.episode': "Staffel {season}, Folge {episode}",
   'plum.season': "Staffel {season}",

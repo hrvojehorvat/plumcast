@@ -31,6 +31,8 @@ export interface PlayCommand {
   prefer: Prefer | null;
   season: number | null;
   episode: number | null;
+  /** The name as said, with kind words ("filmovi 2026"), for matching category names. */
+  phrase: string;
 }
 
 export type PlumCommand =
@@ -90,6 +92,7 @@ const SCREEN_WORDS: readonly [Screen, Set<string>][] = (Object.entries(W.SCREENS
   new Set(all(words).map(normalise)),
 ]);
 const OPEN_RE = re(`^(?:${alt(all(W.OPEN_VERBS))})\\s+(?:(?:${alt(all(W.OPEN_ARTICLES))})\\s+)?(.+)$`);
+const OPEN_CATEGORY_RE = re(`^(?:${alt(all(W.OPEN_CATEGORY_VERBS))})\\s+(?:(?:${alt(all(W.OPEN_ARTICLES))})\\s+)?(.+)$`);
 const PAGE_RE = re(`\\s+(?:${alt(all(W.PAGE_WORDS))})$`);
 
 const REFRESH_VERB = re(`\\b(?:${alt(all(W.REFRESH_VERBS))})\\b`);
@@ -263,6 +266,14 @@ export function parseCommand(spoken: string, now = Date.now()): Parsed {
   const search = text.match(SEARCH_RE);
   if (search) return { command: { kind: 'search', query: search[1] }, confident: true };
 
+  // "Open movies 2026": not a screen, so a category.
+  const openCategory = text.match(OPEN_CATEGORY_RE);
+  let forced: Prefer | null = null;
+  if (openCategory) {
+    text = openCategory[1];
+    forced = 'category';
+  }
+
   text = stripLead(text);
   if (!text) return { command: { kind: 'play-that', index: null }, confident: true };
   if (THAT_RE.test(text)) return { command: { kind: 'play-that', index: null }, confident: true };
@@ -286,7 +297,7 @@ export function parseCommand(spoken: string, now = Date.now()): Parsed {
   let when = hasWhen(cut.when) ? cut.when : null;
 
   let channel: string | null = null;
-  let prefer: Prefer | null = null;
+  let prefer: Prefer | null = forced;
   const lead = text.match(CHANNEL_LEAD_RE);
   if (lead) {
     text = lead[1];
@@ -304,7 +315,10 @@ export function parseCommand(spoken: string, now = Date.now()): Parsed {
       }
     }
   }
-  const pref = cutPrefer(stripLead(text));
+  const named = stripLead(text);
+  const pref = cutPrefer(named);
+  // "category movies 2026": the category word goes, "movies" stays (it's in the name).
+  let phrase = pref.prefer === 'category' ? pref.text : named;
   text = pref.text.replace(BEFORE_TITLE, '').trim();
   prefer = prefer ?? pref.prefer;
 
@@ -312,11 +326,13 @@ export function parseCommand(spoken: string, now = Date.now()): Parsed {
     if (channel) {
       // "play RTL from yesterday": the channel was the only name.
       text = channel;
+      phrase = channel;
       channel = null;
     } else if (when && words(beforeTime) - words(cut.text) === 1) {
       // The title was one time word ("play the movie Yesterday").
       const again = cutPrefer(stripLead(beforeTime));
       text = again.text.replace(BEFORE_TITLE, '').trim();
+      phrase = stripLead(beforeTime);
       prefer = prefer ?? again.prefer;
       when = null;
     }
@@ -328,7 +344,7 @@ export function parseCommand(spoken: string, now = Date.now()): Parsed {
 
   const vague = VAGUE.test(text) || POINTING.test(text) || text.split(' ').length > 6;
   return {
-    command: { kind: 'play', title: text, when, channel, prefer, season, episode },
+    command: { kind: 'play', title: text, when, channel, prefer, season, episode, phrase: phrase || text },
     confident: !vague && text.length >= 2,
   };
 }

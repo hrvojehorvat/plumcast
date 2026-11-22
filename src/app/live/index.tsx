@@ -20,6 +20,7 @@ import { SearchField } from '../../ui/SearchField';
 import { Text } from '../../ui/Text';
 import { colors, radius, tv } from '../../ui/tokens';
 import { setBackStep, whenEnteredSideways } from '../../ui/lastKey';
+import { usePendingCategory } from '../../ui/pendingCategory';
 import { useOpenRight, useSectionEntry } from '../../ui/useOpenRight';
 import { useWideLayout } from '../../ui/useWideLayout';
 
@@ -60,6 +61,7 @@ function useLiveScreen(playlist: Playlist) {
     setChosen(id);
     setQuery('');
   };
+  usePendingCategory('live', select);
   const channels = useChannels(playlist, selected, debouncedQuery);
   const category = categories?.find((c) => c.id === selected) ?? null;
   const open = (channel: Channel) => livePlayer.open(playlist.id, channels ?? [channel], channel);

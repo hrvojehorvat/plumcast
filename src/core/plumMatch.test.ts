@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryMatches, channelKey, channelScore, countryWords, withoutCountry, isSure, rankByName, rankProgrammes, sameTitle, searchVariants, titleScore, whenWindow } from './plumMatch';
+import { categoryMatches, categoryScore, channelKey, channelScore, countryWords, saidSection, withoutCountry, isSure, rankByName, rankProgrammes, sameTitle, searchVariants, titleScore, whenWindow } from './plumMatch';
 
 // Saturday, 21 November 2026, 21:00 local time.
 const now = new Date(2026, 10, 21, 21, 0).getTime();
@@ -127,5 +127,37 @@ describe('withoutCountry', () => {
     expect(withoutCountry('MasterChef Hrvatska')).toBe('masterchef');
     expect(withoutCountry('tagesschau')).toBe('tagesschau');
     expect(withoutCountry('croatia')).toBe('croatia');
+  });
+});
+
+describe('categories', () => {
+  it('match kind words in any language', () => {
+    expect(categoryScore('filmovi 2026', 'Movies 2026')).toBe(1);
+    expect(categoryScore('movies 2026', 'EN | Movies 2026')).toBe(0.8);
+    expect(categoryScore('filme 2026', 'FILMOVI 2026 HD')).toBeGreaterThanOrEqual(0.8);
+    expect(categoryScore('serije', 'Series | Netflix')).toBeGreaterThanOrEqual(0.8);
+  });
+
+  it('read genres and countries as the playlist names them', () => {
+    expect(categoryScore('horror movies', 'EN | Horror')).toBeGreaterThanOrEqual(0.8);
+    expect(categoryScore('horor filmovi', 'Horror')).toBeGreaterThanOrEqual(0.7);
+    expect(categoryScore('action', 'Movies | Action & Adventure')).toBeGreaterThanOrEqual(0.7);
+    expect(categoryScore('sport exyu', 'SPORTS - EX-YU')).toBeGreaterThanOrEqual(0.7);
+    expect(categoryScore('hrvatska', 'Croatia')).toBe(1);
+    expect(categoryScore('kanali srbija', 'Serbia HD')).toBeGreaterThanOrEqual(0.7);
+  });
+
+  it('need every word said in the name', () => {
+    expect(categoryScore('movies', 'Horror')).toBe(0);
+    expect(categoryScore('akcija', 'Action')).toBe(0);
+    expect(categoryScore('movie inception', 'Movies')).toBe(0);
+    expect(categoryScore('movies 2026', 'Movies 2025')).toBe(0);
+  });
+
+  it('know which section was said', () => {
+    expect(saidSection('filmovi 2026')).toBe('movies');
+    expect(saidSection('serien netflix')).toBe('series');
+    expect(saidSection('kanali sport')).toBe('live');
+    expect(saidSection('masterchef')).toBeNull();
   });
 });

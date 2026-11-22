@@ -11,7 +11,9 @@ export type Words = Readonly<Record<Lang, readonly string[]>>;
 
 export type Screen = 'home' | 'live' | 'movies' | 'series' | 'catchup' | 'guide' | 'search' | 'settings';
 export type TimeOfDay = 'morning' | 'midday' | 'afternoon' | 'evening' | 'night';
-export type Prefer = 'live' | 'catchup' | 'movie' | 'series';
+export type Prefer = 'live' | 'catchup' | 'movie' | 'series' | 'category';
+/** The app sections that have categories. */
+export type CategorySection = 'live' | 'movies' | 'series';
 
 // ---------------------------------------------------------------- around the sentence
 
@@ -353,6 +355,40 @@ export const PREFER_WORDS: Readonly<Record<Prefer, Words>> = {
     en: ['series', 'the series', 'tv series', 'sitcom', 'the sitcom'],
     de: ['serie', 'die serie', 'tv serie', 'sitcom'],
     hr: ['serija', 'seriju', 'seriji', 'tv seriju', 'tv serija'],
+  },
+  category: {
+    en: ['category', 'the category', 'categories', 'the list'],
+    de: ['kategorie', 'die kategorie', 'kategorien', 'rubrik', 'die rubrik'],
+    hr: ['kategorija', 'kategoriju', 'kategorije', 'kategoriji'],
+  },
+};
+
+/** "Open …" with something that isn't a screen: a category ("otvori filmove 2026"). */
+export const OPEN_CATEGORY_VERBS: Words = {
+  en: ['open', 'open up'],
+  de: ['öffne', 'öffnen', 'oeffne'],
+  hr: ['otvori', 'otvoriti'],
+};
+
+/**
+ * Words for a section inside category names and speech, all languages alike, so "filmovi 2026"
+ * finds the category "EN | Movies 2026". Plural and singular, the forms people say.
+ */
+export const CATEGORY_KINDS: Readonly<Record<CategorySection, Words>> = {
+  movies: {
+    en: ['movies', 'movie', 'films', 'film', 'cinema', 'vod', 'video on demand'],
+    de: ['filme', 'film', 'spielfilme', 'spielfilm', 'kino', 'kinofilme'],
+    hr: ['filmovi', 'filmove', 'filma', 'film', 'kino', 'igrani filmovi'],
+  },
+  series: {
+    en: ['series', 'tv series', 'shows', 'tv shows', 'serie'],
+    de: ['serien', 'serie', 'tv serien'],
+    hr: ['serije', 'serija', 'seriju', 'tv serije'],
+  },
+  live: {
+    en: ['channels', 'channel', 'live tv', 'live', 'tv channels'],
+    de: ['sender', 'kanäle', 'kanal', 'fernsehen', 'live'],
+    hr: ['kanali', 'kanale', 'kanal', 'programi', 'uživo', 'televizija'],
   },
 };
 

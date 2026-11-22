@@ -69,6 +69,25 @@ describe('catch-up words', () => {
   });
 });
 
+describe('categories', () => {
+  it('keeps the kind words in the phrase for category names', () => {
+    expect(play('filmovi 2026')).toMatchObject({ title: 'filmovi 2026', phrase: 'filmovi 2026', prefer: null });
+    expect(play('movies 2026')).toMatchObject({ phrase: 'movies 2026', when: null });
+  });
+
+  it('"category …" and "open …" ask for a category only', () => {
+    expect(play('category movies 2026')).toMatchObject({ phrase: 'movies 2026', prefer: 'category' });
+    expect(play('Kategorie Filme 2026')).toMatchObject({ phrase: 'filme 2026', prefer: 'category' });
+    expect(play('otvori filmove 2026')).toMatchObject({ phrase: 'filmove 2026', prefer: 'category' });
+    expect(play('open movies 2026')).toMatchObject({ phrase: 'movies 2026', prefer: 'category' });
+  });
+
+  it('still opens plain screens', () => {
+    expect(parseCommand('open movies', now).command).toEqual({ kind: 'open', screen: 'movies' });
+    expect(parseCommand('otvori filmove', now).command).toEqual({ kind: 'open', screen: 'movies' });
+  });
+});
+
 describe('parts of the day', () => {
   it('knows many words for them', () => {
     expect(play('play the news from yesterday at noon').when).toMatchObject({ dayOffset: -1, timeOfDay: 'midday' });
