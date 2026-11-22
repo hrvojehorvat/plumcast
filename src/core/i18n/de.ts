@@ -313,7 +313,6 @@ export const de: Messages = {
   'plum.notFound': "Nichts gefunden für „{text}“.",
   'plum.pick': "Welche davon?",
   'plum.done': "Fertig",
-  'plum.found': "Gefunden",
   'plum.again': "Nochmal sprechen",
   'plum.close': "Schließen",
   'plum.liveNow': "Jetzt live",

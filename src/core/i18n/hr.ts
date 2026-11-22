@@ -313,7 +313,6 @@ export const hr: Messages = {
   'plum.notFound': "Ništa nije pronađeno za „{text}“.",
   'plum.pick': "Koje od ovoga?",
   'plum.done': "Gotovo",
-  'plum.found': "Pronađeno",
   'plum.again': "Recite ponovno",
   'plum.close': "Zatvori",
   'plum.liveNow': "Uživo",

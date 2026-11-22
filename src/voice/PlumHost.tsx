@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { Platform, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLiveSession, useVodSession } from '../player/store';
 import { useI18n } from '../ui/i18n';
 import { Icon } from '../ui/Icon';
 import { setLongSelect } from '../ui/remote';
@@ -51,13 +52,17 @@ export function usePlumAvailable(): boolean {
   return useMemo(() => speechAvailable(), []);
 }
 
-/** Phones: a round mic button above the bottom tabs (they're full). */
+/** Phones: a round mic button above the bottom tabs (they're full). Hidden while something plays. */
 export function PlumPhoneButton() {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const available = usePlumAvailable();
   const open = usePlumOpen();
-  if (!available || open) return null;
+  // Its Android shadow would draw it above the full-screen player.
+  const live = useLiveSession();
+  const vod = useVodSession();
+  const playing = live !== null || vod !== null;
+  if (!available || open || playing) return null;
   return (
     <Pressable
       accessibilityRole="button"

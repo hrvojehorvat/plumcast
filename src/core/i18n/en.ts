@@ -311,7 +311,6 @@ export const en = {
   'plum.notFound': "Nothing found for \"{text}\".",
   'plum.pick': "Which one?",
   'plum.done': "Done",
-  'plum.found': "Found",
   'plum.again': "Speak again",
   'plum.close': "Close",
   'plum.liveNow': "Live now",

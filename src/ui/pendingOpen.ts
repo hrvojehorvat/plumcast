@@ -8,11 +8,13 @@ import { useLatest } from './useQuery';
  * opens now: the request waits until the screen takes it.
  */
 type Target = CategorySection | 'search';
-const pending: Partial<Record<Target, string>> = {};
+/** A request the screen didn't take by then is dropped (it shouldn't fire when the screen opens hours later). */
+const MAX_AGE_MS = 10_000;
+const pending: Partial<Record<Target, { value: string; at: number }>> = {};
 const listeners = new Set<() => void>();
 
 function request(target: Target, value: string) {
-  pending[target] = value;
+  pending[target] = { value, at: Date.now() };
   listeners.forEach((l) => l());
 }
 
@@ -20,10 +22,10 @@ function usePending(target: Target, apply: (value: string) => void) {
   const latest = useLatest(apply);
   useEffect(() => {
     const take = () => {
-      const value = pending[target];
-      if (value === undefined) return;
+      const request = pending[target];
+      if (!request) return;
       delete pending[target];
-      latest.current(value);
+      if (Date.now() - request.at <= MAX_AGE_MS) latest.current(request.value);
     };
     take();
     listeners.add(take);
