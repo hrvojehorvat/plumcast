@@ -16,14 +16,14 @@ import { colors, radius } from '../ui/tokens';
 import { useTimeFormat } from '../ui/useTimeFormat';
 import { ProgrammeDialog } from './ProgrammeDialog';
 import { useChannelProgrammes } from './useGuide';
-import { useGuideScreen, useGuideStatusLine } from './useGuideScreen';
+import { GuideStatusText } from './GuideStatusText';
+import { useGuideScreen } from './useGuideScreen';
 
 /** Phones: pick a day and a category, tap a channel to see its programmes for that day. */
 export function PhoneGuide({ playlist }: { playlist: Playlist }) {
   const { t, lang } = useI18n();
   const insets = useSafeAreaInsets();
   const guide = useGuideScreen(playlist);
-  const line = useGuideStatusLine(playlist);
   const [open, setOpen] = useState<Channel | null>(null);
 
   // Android back closes the channel's programme list first.
@@ -46,9 +46,7 @@ export function PhoneGuide({ playlist }: { playlist: Playlist }) {
         ) : null}
         <Text weight="bold" size={open ? 24 : 30} numberOfLines={1} style={styles.title}>{open ? open.name : t('nav.guide')}</Text>
       </View>
-      {line.text ? (
-        <Text size={12} color={line.problem ? '#ffc9c9' : colors.textFaint} numberOfLines={2} style={styles.status}>{line.text}</Text>
-      ) : null}
+      <GuideStatusText playlist={playlist} size={12} lines={2} style={styles.status} />
 
       <Chips>
         {guide.days.map((d) => (

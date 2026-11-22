@@ -1,4 +1,5 @@
 import type { Programme } from '../core/epg';
+import { createBreather } from '../core/breathe';
 import { foldSearch } from '../core/search';
 import { getDb, getSetting, insertMany, setSetting } from './db';
 
@@ -44,6 +45,9 @@ export async function guideChannelIds(playlistId: number): Promise<Set<string>> 
 
 export type GuideRow = [channel: string, start: number, stop: number, title: string, description: string | null];
 
+/** Programmes prepared and saved per step. */
+const SAVE_BATCH = 2_000;
+
 /** Replaces a playlist's whole guide in one transaction, so a failed save keeps the old guide. */
 export async function saveGuide(playlistId: number, rows: readonly GuideRow[], now = Date.now()): Promise<GuideStatus> {
   const db = await getDb();
@@ -53,9 +57,15 @@ export async function saveGuide(playlistId: number, rows: readonly GuideRow[], n
     if (first === null || r[1] < first) first = r[1];
     if (last === null || r[2] > last) last = r[2];
   }
+  const breathe = createBreather();
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM epg WHERE playlist_id = ?', playlistId);
-    await insertMany(db, 'epg', ['playlist_id', 'channel', 'start', 'stop', 'title', 'description', 'search'], rows.map((r) => [playlistId, ...r, foldSearch(r[3])]));
+    // In batches with breaks for the UI: preparing 100k rows at once would freeze the remote.
+    for (let at = 0; at < rows.length; at += SAVE_BATCH) {
+      const batch = rows.slice(at, at + SAVE_BATCH).map((r) => [playlistId, ...r, foldSearch(r[3])]);
+      await insertMany(db, 'epg', ['playlist_id', 'channel', 'start', 'stop', 'title', 'description', 'search'], batch);
+      await breathe();
+    }
   });
   const status: GuideStatus = { fetchedAt: now, count: rows.length, first, last };
   await setSetting(`guide:${playlistId}`, JSON.stringify(status));

@@ -12,7 +12,7 @@ import { canReplay } from '../core/catchup';
 import type { Programme } from '../core/epg';
 import { formatDay } from '../core/format';
 import { addDays, layoutRow, type GuideCell } from '../core/guide';
-import { cancelGuideSync, syncGuide } from '../data/guide';
+import { cancelGuideSync, syncGuide, useGuideBusy } from '../data/guide';
 import { useNow } from '../data/epg';
 import { FAVORITES, RECENT, type Channel } from '../data/live';
 import type { Playlist } from '../data/playlists';
@@ -31,7 +31,8 @@ import { useOpenRight, useSectionEntry } from '../ui/useOpenRight';
 import { useTimeFormat } from '../ui/useTimeFormat';
 import { ProgrammeDialog } from './ProgrammeDialog';
 import { useChannelProgrammes } from './useGuide';
-import { useGuideScreen, useGuideStatusLine } from './useGuideScreen';
+import { GuideStatusText } from './GuideStatusText';
+import { useGuideScreen } from './useGuideScreen';
 
 const ROW = 46;
 const ROW_GAP = 5;
@@ -47,7 +48,7 @@ const floorHalfHour = (ms: number) => Math.floor(ms / HALF_HOUR) * HALF_HOUR;
 export function WideGuide({ playlist }: { playlist: Playlist }) {
   const { t, lang } = useI18n();
   const guide = useGuideScreen(playlist);
-  const line = useGuideStatusLine(playlist);
+  const busy = useGuideBusy(playlist.id);
   const now = useNow(30_000);
   const [gridWidth, setGridWidth] = useState(0);
   const [sideWidth, setSideWidth] = useState(0);
@@ -128,7 +129,7 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
       {/* Categories */}
       <View style={styles.side}>
         <Text weight="bold" size={tv.title} style={styles.title}>{t('nav.guide')}</Text>
-        {line.text ? <Text size={11} color={line.problem ? '#ffc9c9' : colors.textFaint} numberOfLines={3} style={styles.status}>{line.text}</Text> : null}
+        <GuideStatusText playlist={playlist} size={11} lines={3} style={styles.status} />
         <SpatialNavigationView direction="vertical" style={styles.flex}>
           {/* Always mounted, so the list keeps its place before the button for the remote. */}
           <SpatialNavigationView direction="vertical" style={styles.listFill}>
@@ -161,7 +162,7 @@ export function WideGuide({ playlist }: { playlist: Playlist }) {
             </View>
           </SpatialNavigationView>
           <View style={styles.sideButton}>
-            {line.busy ? (
+            {busy ? (
               <Button compact icon="stop" label={t('sync.stop')} onPress={cancelGuideSync} onFocus={() => whenEnteredSideways(toSelectedCategory)} />
             ) : (
               <Button compact icon="refresh" label={t('guide.update')} onPress={() => void syncGuide(playlist)} onFocus={() => whenEnteredSideways(toSelectedCategory)} />

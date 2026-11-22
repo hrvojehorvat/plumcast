@@ -1,6 +1,7 @@
 import { fetch as expoFetch } from 'expo/fetch';
 import { useEffect, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
+import { createBreather } from '../core/breathe';
 import { PlaylistError, toPlaylistError } from '../core/errors';
 import { createUtf8Decoder, XmltvParser } from '../core/xmltv';
 import { xmltvUrl } from '../core/xtream';
@@ -25,6 +26,8 @@ const KEEP_BACK_MS = 8 * 24 * 60 * 60_000;
 const KEEP_AHEAD_MS = 14 * 24 * 60 * 60_000;
 /** No data for this long = give up. */
 const IDLE_TIMEOUT_MS = 60_000;
+/** A downloaded chunk is parsed in slices this long, with a break for the UI when needed. */
+const PARSE_SLICE = 64 * 1024;
 
 export type GuideProblem = 'no-source' | 'no-login' | 'no-match' | PlaylistError['code'];
 
@@ -237,6 +240,7 @@ async function downloadGuide(
     if (!res.body) throw new PlaylistError('format', 'No body');
     const reader = (await maybeGunzip(res.body as ReadableStream<Uint8Array>)).getReader();
     const decode = createUtf8Decoder();
+    const breathe = createBreather();
     let bytes = 0;
     let lastReport = 0;
     for (;;) {
@@ -244,7 +248,12 @@ async function downloadGuide(
       touch();
       if (done) break;
       bytes += value.byteLength;
-      parser.push(decode(value));
+      // Parsed in slices with breaks: a whole multi-MB chunk at once would freeze the remote.
+      const text = decode(value);
+      for (let at = 0; at < text.length; at += PARSE_SLICE) {
+        parser.push(text.slice(at, at + PARSE_SLICE));
+        await breathe();
+      }
       if (Date.now() - lastReport > 250) {
         lastReport = Date.now();
         onProgress(bytes, rows.length);
@@ -297,9 +306,17 @@ export function useGuideVersion(playlistId: number): number | null {
 
 /** Loads the stored status of the active playlist's guide. */
 export function useGuideStatus(playlist: Playlist | null): GuideStatus | null | undefined {
-  const s = useGuideState();
+  // Only the stored status: download progress (several times a second) doesn't re-render the screen.
+  const get = () => (playlist ? state.status[playlist.id] : undefined);
+  const status = useSyncExternalStore(subscribe, get, get);
   useEffect(() => {
     if (playlist) void loadStatus(playlist.id).catch(() => undefined);
   }, [playlist]);
-  return playlist ? s.status[playlist.id] : undefined;
+  return status;
+}
+
+/** True while this playlist's guide downloads or saves; changes only when that starts or ends. */
+export function useGuideBusy(playlistId: number): boolean {
+  const get = () => state.syncing?.playlistId === playlistId;
+  return useSyncExternalStore(subscribe, get, get);
 }
