@@ -1,6 +1,7 @@
 import { foldSearch } from './search';
 import type { When } from './voice';
-import { PARTS_OF_DAY } from './voiceWords';
+import type { Lang } from './i18n';
+import { COUNTRIES, PARTS_OF_DAY } from './voiceWords';
 
 /**
  * Matching what Plum heard against the catalog: how well a spoken title fits a name, which time
@@ -28,6 +29,8 @@ export function titleScore(said: string, title: string): number {
   if (t.startsWith(`${q} `)) return 0.85;
   if (` ${t} `.includes(` ${q} `)) return 0.8;
   if (tc.includes(qc)) return 0.7;
+  // The whole title is inside what was said, with extra words ("masterchef hrvatska" → "MasterChef").
+  if (` ${q} `.includes(` ${t} `) || qc.includes(tc)) return t.length >= 4 ? 0.7 : 0.4;
   // Some of the spoken words appear in the title.
   const qWords = q.split(' ').filter((w) => w.length >= 3);
   if (!qWords.length) return 0;
@@ -169,3 +172,31 @@ export function isSure<T>(ranked: readonly Ranked<T>[], same: (a: T, b: T) => bo
 }
 
 export const sameTitle = (a: string, b: string) => clean(a) === clean(b);
+
+/**
+ * Category names to search first for catch-up: the countries said in the title, then the app
+ * language's country. Returns the words to look for in category names, most wanted first.
+ */
+export function countryWords(said: string, lang: Lang | null): string[] {
+  const words = new Set(clean(said).split(' '));
+  const spoken = COUNTRIES.filter((c) => c.said.some((w) => words.has(clean(w))));
+  const own = COUNTRIES.filter((c) => c.lang === lang);
+  return [...new Set([...spoken, ...own].flatMap((c) => c.categories.map(clean)))];
+}
+
+/** True when a category name is about one of those words ("HR | Hrvatska HD" ~ "hr"). */
+export function categoryMatches(name: string, words: readonly string[]): boolean {
+  const padded = ` ${clean(name)} `;
+  return words.some((w) => padded.includes(` ${w} `));
+}
+
+/**
+ * The title without country words: "masterchef croatia" → "masterchef". The country says where
+ * to look, it isn't part of the name. Keeps the words when nothing else is left.
+ */
+export function withoutCountry(said: string): string {
+  const countries = new Set(COUNTRIES.flatMap((c) => c.said.map(clean)));
+  const words = clean(said).split(' ').filter(Boolean);
+  const rest = words.filter((w) => !countries.has(w));
+  return (rest.length ? rest : words).join(' ');
+}

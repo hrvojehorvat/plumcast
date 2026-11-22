@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { channelKey, channelScore, isSure, rankByName, rankProgrammes, sameTitle, searchVariants, titleScore, whenWindow } from './plumMatch';
+import { categoryMatches, channelKey, channelScore, countryWords, withoutCountry, isSure, rankByName, rankProgrammes, sameTitle, searchVariants, titleScore, whenWindow } from './plumMatch';
 
 // Saturday, 21 November 2026, 21:00 local time.
 const now = new Date(2026, 10, 21, 21, 0).getTime();
@@ -15,8 +15,14 @@ describe('titleScore', () => {
     expect(titleScore('wer wird millionar', 'Wer wird Millionär?')).toBe(1);
   });
 
+  it('keeps a title said with extra words (a country, a channel)', () => {
+    expect(titleScore('masterchef hrvatska', 'MasterChef')).toBe(0.7);
+    expect(titleScore('tagesschau ard', 'Tagesschau')).toBe(0.7);
+    expect(titleScore('news today', 'TV')).toBeLessThan(0.5);
+  });
+
   it('gives partial credit for some words and nothing for none', () => {
-    const some = titleScore('breaking bad season finale', 'Breaking Bad');
+    const some = titleScore('breaking news tonight', 'Breaking Bad');
     expect(some).toBeGreaterThan(0);
     expect(some).toBeLessThan(0.7);
     expect(titleScore('masterchef', 'Tagesschau')).toBe(0);
@@ -95,5 +101,31 @@ describe('ranking', () => {
   it('is unsure when the best is weak', () => {
     const ranked = rankByName([{ name: 'MasterChef' }], 'chef', (m) => m.name);
     expect(isSure(ranked, () => false)).toBe(false);
+  });
+});
+
+describe('countries', () => {
+  it('a said country comes first, then the app language', () => {
+    const words = countryWords('masterchef srbija', 'hr');
+    expect(words.indexOf('rs')).toBeLessThan(words.indexOf('hr'));
+    expect(words).toContain('hrvatska');
+    expect(countryWords('masterchef', 'de')).toContain('deutschland');
+  });
+
+  it('match category names by whole words', () => {
+    const hr = countryWords('masterchef hrvatska', null);
+    expect(categoryMatches('HR | Hrvatska', hr)).toBe(true);
+    expect(categoryMatches('EX-YU', hr)).toBe(true);
+    expect(categoryMatches('Christmas', hr)).toBe(false);
+    expect(categoryMatches('DE | Sport', hr)).toBe(false);
+  });
+});
+
+describe('withoutCountry', () => {
+  it('takes country words out of a title, unless nothing is left', () => {
+    expect(withoutCountry('masterchef croatia')).toBe('masterchef');
+    expect(withoutCountry('MasterChef Hrvatska')).toBe('masterchef');
+    expect(withoutCountry('tagesschau')).toBe('tagesschau');
+    expect(withoutCountry('croatia')).toBe('croatia');
   });
 });

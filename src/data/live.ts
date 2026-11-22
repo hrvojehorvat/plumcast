@@ -231,12 +231,23 @@ export async function recentlyAired(playlistId: number, categoryId: string, from
  * CROSS JOIN keeps the matched programmes as the outer loop; otherwise SQLite may rerun the
  * programme scan once per channel (minutes on a real playlist).
  */
-export async function searchProgrammes(playlistId: number, query: string, from: number, to: number, around: number, limit = 120): Promise<AiredItem[]> {
+export async function searchProgrammes(
+  playlistId: number,
+  query: string,
+  from: number,
+  to: number,
+  around: number,
+  limit = 120,
+  /** Also match with spaces ignored ("masterchef" finds "Master Chef"). Plum uses it; the Search screen doesn't. */
+  ignoreSpaces = false,
+): Promise<AiredItem[]> {
   const db = await getDb();
+  const match = ignoreSpaces ? `(search LIKE ? ESCAPE '\\' OR replace(search, ' ', '') LIKE ? ESCAPE '\\')` : `search LIKE ? ESCAPE '\\'`;
+  const patterns = ignoreSpaces ? [likeContains(query), likeContains(query.replace(/\s+/g, ''))] : [likeContains(query)];
   const rows = await db.getAllAsync<ChannelRow & { p_start: number; p_stop: number; p_title: string; p_description: string | null }>(
     `SELECT ${CHANNEL_COLUMNS}, e.start AS p_start, e.stop AS p_stop, e.title AS p_title, e.description AS p_description, MIN(l.sort) AS first_sort
        FROM (SELECT channel, start, stop, title, description FROM epg
-              WHERE playlist_id = ? AND stop > ? AND start < ? AND search LIKE ? ESCAPE '\\'
+              WHERE playlist_id = ? AND stop > ? AND start < ? AND ${match}
               ORDER BY abs(start - ?) LIMIT ${Math.floor(limit) * 3}) e
        CROSS JOIN live l ON l.playlist_id = ? AND lower(l.epg_id) = e.channel
        ${FAV_JOIN}
@@ -244,7 +255,7 @@ export async function searchProgrammes(playlistId: number, query: string, from: 
       GROUP BY e.channel, e.start
       ORDER BY abs(e.start - ?)
       LIMIT ${Math.floor(limit)}`,
-    playlistId, from, to, likeContains(query), around, playlistId, around,
+    playlistId, from, to, ...patterns, around, playlistId, around,
   );
   return rows.map((r) => ({ channel: toChannel(r), programme: { start: r.p_start, end: r.p_stop, title: r.p_title, description: r.p_description } }));
 }

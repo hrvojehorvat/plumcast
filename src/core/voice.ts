@@ -296,6 +296,12 @@ export function parseCommand(spoken: string, now = Date.now()): Parsed {
     if (on) {
       text = on[1];
       channel = on[2];
+      // "… on catch up" names a kind, not a channel.
+      const kind = cutPrefer(channel);
+      if (!kind.text) {
+        prefer = kind.prefer;
+        channel = null;
+      }
     }
   }
   const pref = cutPrefer(stripLead(text));

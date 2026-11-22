@@ -54,6 +54,21 @@ describe('playing a past programme', () => {
   });
 });
 
+describe('catch-up words', () => {
+  it('keep the catch-up meaning wherever they are said', () => {
+    for (const text of ['catchup masterchef', 'replay masterchef', 'play masterchef on catch up', 'spiel MasterChef aus der Mediathek', 'nadoknadi masterchef']) {
+      expect(play(text), text).toMatchObject({ title: 'masterchef', prefer: 'catchup', channel: null });
+    }
+  });
+
+  it('read days back in words', () => {
+    expect(play('masterchef from two days ago')).toMatchObject({ title: 'masterchef', prefer: 'catchup', when: { dayOffset: -2 } });
+    expect(play('catch up masterchef from three days ago').when?.dayOffset).toBe(-3);
+    expect(play('MasterChef vor zwei Tagen').when?.dayOffset).toBe(-2);
+    expect(play('masterchef prije dva dana').when?.dayOffset).toBe(-2);
+  });
+});
+
 describe('parts of the day', () => {
   it('knows many words for them', () => {
     expect(play('play the news from yesterday at noon').when).toMatchObject({ dayOffset: -1, timeOfDay: 'midday' });

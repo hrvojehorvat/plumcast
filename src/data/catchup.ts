@@ -60,6 +60,16 @@ async function loadArchive(playlist: Playlist, channel: Channel, now: number): P
 }
 
 /**
+ * A channel's replayable programmes, newest first, with the user's time correction applied, the
+ * same list the Catch-up screen shows (provider archive for Xtream, else the stored guide).
+ * For Plum, which looks across channels without a screen.
+ */
+export async function channelArchive(playlist: Playlist, channel: Channel, offsetHours: number, now = Date.now()): Promise<Programme[]> {
+  if (replayDays(channel) <= 0) return [];
+  return replayable(channel, shiftProgrammes(await loadArchive(playlist, channel, now), offsetHours), now);
+}
+
+/**
  * A channel's replayable programmes, newest first, with the user's time correction applied.
  * undefined while loading. Refreshes every few minutes, so programmes that just ended show up.
  */

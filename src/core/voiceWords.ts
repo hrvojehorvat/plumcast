@@ -37,7 +37,7 @@ export const LEAD: Words = {
     'can you', 'could you', 'would you', 'will you', 'can i', 'could i', 'i want', 'i need',
     'i want to watch', 'i want to see', 'i would like to watch', 'i would like to see', 'id like to watch', 'id like to see',
     'i wanna watch', 'i wanna see', 'lets watch', 'let me watch', 'let me see', 'give me',
-    'play', 'replay', 'play back', 'put on', 'watch', 'show me', 'show', 'start', 'turn on',
+    'play', 'put on', 'watch', 'show me', 'show', 'start', 'turn on',
     'switch to', 'change to', 'go to', 'tune to', 'tune in to', 'resume', 'continue',
     'me', 'for me', 'us',
   ],
@@ -334,9 +334,15 @@ export const PREFER_WORDS: Readonly<Record<Prefer, Words>> = {
     hr: ['uživo', 'kanal', 'program', 'programa', 'postaja', 'postaju', 'tv kanal', 'live'],
   },
   catchup: {
-    en: ['replay', 'the replay', 'catch up', 'catchup', 'recording', 'the recording', 'rerun', 'from the beginning', 'from the start'],
-    de: ['wiederholung', 'die wiederholung', 'aufzeichnung', 'die aufzeichnung', 'aus der mediathek', 'nochmal', 'von anfang an'],
-    hr: ['snimka', 'snimku', 'repriza', 'reprizu', 'ponovno', 'ispočetka', 'od početka', 'iz arhive'],
+    en: [
+      'replay', 'the replay', 'play back', 'catch up', 'catchup', 'catch up tv', 'from catch up', 'from catchup', 'in catch up',
+      'recording', 'the recording', 'rerun', 'watch again', 'from the archive', 'from the beginning', 'from the start',
+    ],
+    de: [
+      'wiederholung', 'die wiederholung', 'aufzeichnung', 'die aufzeichnung', 'aus der mediathek', 'in der mediathek', 'mediathek',
+      'nochmal', 'nochmal ansehen', 'von anfang an', 'catch up', 'aus dem archiv',
+    ],
+    hr: ['snimka', 'snimku', 'repriza', 'reprizu', 'ponovno', 'ispočetka', 'od početka', 'iz arhive', 'u arhivi', 'nadoknadi', 'nadoknada', 'catch up'],
   },
   movie: {
     en: ['movie', 'the movie', 'film', 'the film', 'feature film'],
@@ -390,3 +396,23 @@ export const CHANNEL_WORDS: Words = {
   de: ['sender', 'dem sender', 'den sender', 'kanal', 'dem kanal'],
   hr: ['kanal', 'kanalu', 'tv kanal', 'program', 'programu', 'postaju', 'postaji'],
 };
+
+// ---------------------------------------------------------------- where to look for catch-up
+
+/**
+ * Words in category names per country (provider lists are grouped by country: "HR | Hrvatska",
+ * "DE Deutschland", "EX-YU"). Plum searches the catch-up of matching categories first when a
+ * country is said ("masterchef hrvatska") or the app is in that language.
+ */
+export const COUNTRIES: readonly { lang: Lang | null; said: readonly string[]; categories: readonly string[] }[] = [
+  { lang: 'hr', said: ['hrvatska', 'hrvatski', 'hrvatsku', 'croatia', 'croatian', 'kroatien'], categories: ['hrvatska', 'croatia', 'hr', 'ex yu', 'exyu', 'balkan'] },
+  { lang: null, said: ['srbija', 'serbia', 'serbien', 'srpski'], categories: ['srbija', 'serbia', 'rs', 'srb', 'ex yu', 'exyu', 'balkan'] },
+  { lang: null, said: ['bosna', 'bih', 'bosnia', 'bosnien'], categories: ['bosna', 'bosnia', 'ba', 'bih', 'ex yu', 'exyu', 'balkan'] },
+  { lang: null, said: ['slovenija', 'slovenia', 'slowenien'], categories: ['slovenija', 'slovenia', 'si', 'slo', 'ex yu', 'exyu'] },
+  { lang: 'de', said: ['deutschland', 'germany', 'german', 'deutsch', 'njemacka', 'njemačka'], categories: ['deutschland', 'germany', 'de', 'ger'] },
+  { lang: null, said: ['österreich', 'austria', 'austrija'], categories: ['österreich', 'austria', 'at'] },
+  { lang: null, said: ['schweiz', 'switzerland', 'švicarska'], categories: ['schweiz', 'switzerland', 'ch'] },
+  { lang: 'en', said: ['uk', 'british', 'england', 'britain'], categories: ['united kingdom', 'england', 'uk', 'gb'] },
+  { lang: null, said: ['usa', 'america', 'american', 'amerika'], categories: ['united states', 'america', 'usa', 'us'] },
+  { lang: null, said: ['australia', 'australian', 'australien', 'australija'], categories: ['australia', 'au'] },
+];
