@@ -46,3 +46,26 @@ export function orderProgrammeHits<T extends { programme: { start: number; end: 
     return ga === 2 ? b.programme.start - a.programme.start : a.programme.start - b.programme.start;
   });
 }
+
+/**
+ * One SQL condition matching any of several spellings ("horror movies", "horrormovies", "horror"),
+ * so a table is scanned once instead of once per spelling. `ignoreSpaces` also matches the
+ * column with its spaces taken out ("masterchef" finds "Master Chef"). null for nothing to match.
+ */
+export function likeAny(column: string, queries: string | readonly string[], ignoreSpaces = false): { sql: string; params: string[] } | null {
+  const list = [...new Set((typeof queries === 'string' ? [queries] : queries).map(foldSearch).filter(Boolean))];
+  if (!list.length) return null;
+  const parts: string[] = [];
+  const params: string[] = [];
+  for (const q of list) {
+    parts.push(`${column} LIKE ? ESCAPE '\\'`);
+    params.push(likeContains(q));
+  }
+  if (ignoreSpaces) {
+    for (const q of new Set(list.map((q) => q.replace(/ /g, '')))) {
+      parts.push(`replace(${column}, ' ', '') LIKE ? ESCAPE '\\'`);
+      params.push(likeContains(q));
+    }
+  }
+  return { sql: `(${parts.join(' OR ')})`, params };
+}

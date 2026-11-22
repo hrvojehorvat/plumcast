@@ -307,6 +307,7 @@ export const hr: Messages = {
   'plum.ask': "Pitajte Pluma",
   'plum.listening': "Slušam…",
   'plum.hint': "Recite što želite gledati, npr. „MasterChef od jučer“.",
+  'plum.stillLooking': "Još tražim…",
   'plum.thinking': "Tražim…",
   'plum.notUnderstood': "Oprostite, ne razumijem.",
   'plum.notFound': "Ništa nije pronađeno za „{text}“.",

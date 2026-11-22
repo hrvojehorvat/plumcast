@@ -305,6 +305,7 @@ export const en = {
   'plum.ask': "Ask Plum",
   'plum.listening': "Listening…",
   'plum.hint': "Say what to watch, e.g. \"MasterChef from yesterday\".",
+  'plum.stillLooking': "Still looking…",
   'plum.thinking': "Looking…",
   'plum.notUnderstood': "Sorry, I didn't understand that.",
   'plum.notFound': "Nothing found for \"{text}\".",

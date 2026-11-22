@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { CatalogSort } from '../catalog/CatalogScreen';
-import { likeContains } from '../core/search';
+import { likeAny } from '../core/search';
 import { getDb } from './db';
 import { ALL, FAVORITES } from './live';
 
@@ -113,7 +113,7 @@ export async function countMovieLists(playlistId: number): Promise<{ favorites: 
 }
 
 /** Movies of one category (or a built-in list), optionally filtered by a search text inside it. */
-export async function listMovies(playlistId: number, categoryId: string, query = '', sort: MovieSort = 'recent', limit?: number): Promise<MovieItem[]> {
+export async function listMovies(playlistId: number, categoryId: string, query: string | readonly string[] = '', sort: MovieSort = 'recent', limit?: number): Promise<MovieItem[]> {
   const db = await getDb();
   const params: (string | number)[] = [playlistId];
   let where = 'm.playlist_id = ?';
@@ -126,9 +126,11 @@ export async function listMovies(playlistId: number, categoryId: string, query =
     where += ' AND m.category_id = ?';
     params.push(categoryId);
   }
-  if (query.trim()) {
-    where += ` AND m.search LIKE ? ESCAPE '\\'`;
-    params.push(likeContains(query));
+  // One spelling, or several matched in one scan (Plum).
+  const match = likeAny('m.search', query);
+  if (match) {
+    where += ` AND ${match.sql}`;
+    params.push(...match.params);
   }
   const rows = await db.getAllAsync<MovieRow>(`SELECT ${COLUMNS} FROM movies m ${JOINS} WHERE ${where} ORDER BY ${order}${limit ? ` LIMIT ${Math.floor(limit)}` : ''}`, ...params);
   return rows.map(toMovie);

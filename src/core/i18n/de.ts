@@ -307,6 +307,7 @@ export const de: Messages = {
   'plum.ask': "Plum fragen",
   'plum.listening': "Ich höre zu…",
   'plum.hint': "Sag, was du sehen willst, z. B. „MasterChef von gestern“.",
+  'plum.stillLooking': "Suche noch…",
   'plum.thinking': "Ich suche…",
   'plum.notUnderstood': "Das habe ich leider nicht verstanden.",
   'plum.notFound': "Nichts gefunden für „{text}“.",

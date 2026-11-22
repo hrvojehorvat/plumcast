@@ -92,13 +92,15 @@ export function PlumPanel() {
   const line = useTargetLine();
   const { lock, unlock } = useLockSpatialNavigation();
   const candidates = phase.kind === 'found' ? phase.resolution.candidates : [];
-  // The remote focus inside the card; a new answer starts at its first item.
-  const [focus, setFocus] = useState({ phase, row: 0, button: 0 });
-  const { row, button } = focus.phase === phase ? focus : { row: 0, button: 0 };
+  // The remote focus inside the card; a new answer starts at its first item. More results for the
+  // same answer (arriving while the guide is searched) keep the focus where it is.
+  const answer: unknown = phase.kind === 'found' ? `found:${phase.heard.text}` : phase;
+  const [focus, setFocus] = useState({ answer, row: 0, button: 0 });
+  const { row, button } = focus.answer === answer ? focus : { row: 0, button: 0 };
   const move = (change: { row?: (r: number) => number; button?: (b: number) => number }) =>
     setFocus((prev) => {
-      const base = prev.phase === phase ? prev : { phase, row: 0, button: 0 };
-      return { phase, row: change.row ? change.row(base.row) : base.row, button: change.button ? change.button(base.button) : base.button };
+      const base = prev.answer === answer ? prev : { answer, row: 0, button: 0 };
+      return { answer, row: change.row ? change.row(base.row) : base.row, button: change.button ? change.button(base.button) : base.button };
     });
   const listening = phase.kind === 'listening';
 
@@ -217,7 +219,8 @@ function Status({ phase, heard, t }: { phase: PlumPhase; heard: string; t: T }) 
     case 'thinking':
       return <Text size={16} color={colors.textFaint}>{`"${phase.heard.text}" · ${t('plum.thinking')}`}</Text>;
     case 'found':
-      return <Text size={16} color={colors.textFaint}>{`"${phase.heard.text}"`}</Text>;
+      // Quick results are shown while the TV guide or the archives are still searched.
+      return <Text size={16} color={colors.textFaint}>{phase.searching ? `"${phase.heard.text}" · ${t('plum.stillLooking')}` : `"${phase.heard.text}"`}</Text>;
     case 'refreshing':
       return <Refreshing phase={phase} t={t} />;
     case 'not-understood':

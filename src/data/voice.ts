@@ -1,3 +1,4 @@
+import { createBreather } from '../core/breathe';
 import { canReplay, DAY_MS } from '../core/catchup';
 import {
   categoryMatches,
@@ -60,10 +61,33 @@ export interface ResolveOptions {
   /** App language: its country's categories are searched for catch-up first. */
   lang?: Lang;
   now?: number;
+  /** Stops the search: no further queries or archive downloads start, and it throws `PlumCancelled`. */
+  signal?: AbortSignal;
+  /** What is found so far, while slower parts (TV guide, archives) still run; never `sure`. */
+  onUpdate?: (found: Resolution) => void;
+}
+
+/** The search was replaced by a newer one or Plum closed. */
+export class PlumCancelled extends Error {
+  constructor() {
+    super('cancelled');
+  }
+}
+
+/** Throws when the search was stopped; called between steps. */
+function check(options: ResolveOptions) {
+  if (options.signal?.aborted) throw new PlumCancelled();
+}
+
+/** Shows what was found so far (only when there is something and the search still runs). */
+function partial(options: ResolveOptions, ranked: Ranked<PlumTarget>[]) {
+  if (!options.onUpdate || options.signal?.aborted || !ranked.length) return;
+  options.onUpdate({ ...finish(ranked), sure: false });
 }
 
 const MAX_CANDIDATES = 20;
-const PER_QUERY = 60;
+/** Rows per query; all spellings share one query now, so a little more. */
+const PER_QUERY = 100;
 /** A bare "play X" also looks this far back for replays. */
 const BACK_MS = 7 * DAY_MS;
 
@@ -124,18 +148,16 @@ async function findChannels(playlistId: number, said: string): Promise<Ranked<Ch
     const channel = await channelByNumber(playlistId, Number(said));
     return channel ? [{ item: channel, score: 1 }] : [];
   }
-  const lists = await Promise.all(searchVariants(said).map((q) => listChannels(playlistId, ALL, q, false, PER_QUERY)));
-  const byId = new Map<string, Channel>();
-  for (const c of lists.flat()) byId.set(c.id, c);
-  return rankByName([...byId.values()], said, (c) => c.name, channelScore);
+  // All spellings in one scan.
+  const list = await listChannels(playlistId, ALL, searchVariants(said), false, PER_QUERY);
+  return rankByName(list, said, (c) => c.name, channelScore);
 }
 
 async function findProgrammes(playlistId: number, said: string, window: TimeWindow, shift: number): Promise<AiredItem[]> {
-  const lists = await Promise.all(
-    searchVariants(said).map((q) => searchProgrammes(playlistId, q, window.from - shift, window.to - shift, window.around - shift, PER_QUERY, true)),
-  );
+  // All spellings in one scan of the guide (the biggest table).
+  const list = await searchProgrammes(playlistId, searchVariants(said), window.from - shift, window.to - shift, window.around - shift, PER_QUERY, true);
   const byKey = new Map<string, AiredItem>();
-  for (const a of lists.flat()) {
+  for (const a of list) {
     byKey.set(`${a.channel.id}|${a.programme.start}`, { ...a, programme: { ...a.programme, start: a.programme.start + shift, end: a.programme.end + shift } });
   }
   return [...byKey.values()];
@@ -152,12 +174,12 @@ function programmeTarget(a: AiredItem, now: number): PlumTarget {
 }
 
 /** Runs `task` for each item, `parallel` at a time; stops starting new ones after `waitMs` and returns what finished. */
-async function eachLimited<T, R>(items: readonly T[], parallel: number, waitMs: number, task: (item: T) => Promise<R>): Promise<R[]> {
+async function eachLimited<T, R>(items: readonly T[], parallel: number, waitMs: number, task: (item: T) => Promise<R>, signal?: AbortSignal): Promise<R[]> {
   const out: R[] = [];
   const deadline = Date.now() + waitMs;
   let next = 0;
   const worker = async () => {
-    while (next < items.length && Date.now() < deadline) {
+    while (next < items.length && Date.now() < deadline && !signal?.aborted) {
       const item = items[next++];
       try {
         out.push(await task(item));
@@ -220,13 +242,15 @@ async function fromArchives(playlist: Playlist, cmd: PlayCommand, countryText: s
 
   const channels = [...byKey.values()];
   trace(`asking ${channels.length} archives for "${cmd.title}"`, channels.map((c) => c.name));
+  check(options);
   const lists = await eachLimited(channels, ARCHIVE_PARALLEL, ARCHIVE_WAIT_MS, async (channel) => {
     const programmes = await channelArchive(playlist, channel, options.offsetHours, now);
     const inWindow = programmes.filter((p) => p.end > window.from && p.start < window.to);
     const matching = inWindow.filter((p) => titleScore(cmd.title, p.title) >= MIN_TITLE_SCORE);
     trace(`${channel.name}: ${programmes.length} in archive, ${inWindow.length} in window, ${matching.length} match`, matching.map((p) => p.title));
     return inWindow.map((p) => ({ channel, programme: { start: p.start, end: p.end, title: p.title, description: p.description } }));
-  });
+  }, options.signal);
+  check(options);
   trace(`${lists.length} of ${channels.length} archives answered in time`);
   return { items: lists.flat(), countryCategories: new Set(country) };
 }
@@ -278,13 +302,26 @@ const MAX_SOUND = 8;
 /** Below this the normal search counts as not having found it. */
 const WEAK_SCORE = 0.8;
 
+/** Builds the keys in steps with breaks: 100k names at once would freeze a TV box for seconds. */
+async function buildSoundEntries(playlistId: number): Promise<SoundEntry[]> {
+  const [movies, series] = await Promise.all([movieNames(playlistId), seriesNames(playlistId)]);
+  const breathe = createBreather();
+  const out: SoundEntry[] = [];
+  const add = async (kind: SoundEntry['kind'], list: { id: string; name: string }[]) => {
+    for (const item of list) {
+      out.push({ kind, id: item.id, name: item.name, key: soundKey(bareTitle(item.name)) });
+      if (out.length % 500 === 0) await breathe();
+    }
+  };
+  await add('movie', movies);
+  await add('series', series);
+  return out;
+}
+
 function soundEntries(playlist: Playlist): Promise<SoundEntry[]> {
   const of = `${playlist.id}|${playlist.syncedAt ?? 0}`;
   if (soundIndex?.of !== of) {
-    const entries = Promise.all([movieNames(playlist.id), seriesNames(playlist.id)]).then(([movies, series]) => [
-      ...movies.map((m) => ({ kind: 'movie' as const, id: m.id, name: m.name, key: soundKey(bareTitle(m.name)) })),
-      ...series.map((s) => ({ kind: 'series' as const, id: s.id, name: s.name, key: soundKey(bareTitle(s.name)) })),
-    ]);
+    const entries = buildSoundEntries(playlist.id);
     soundIndex = { of, entries };
     entries.catch(() => {
       if (soundIndex?.of === of) soundIndex = null;
@@ -293,11 +330,20 @@ function soundEntries(playlist: Playlist): Promise<SoundEntry[]> {
   return soundIndex.entries;
 }
 
+/**
+ * Call when Plum opens: the sound-alike index is built while the user speaks, so the search
+ * doesn't wait for it. Does nothing when it's already there.
+ */
+export function warmUpPlum(playlist: Playlist) {
+  void soundEntries(playlist).catch(() => undefined);
+}
+
 /** Movies and series whose names sound like what was heard (offered, never played on their own). */
-async function findBySound(playlist: Playlist, title: string, only: 'movie' | 'series' | null): Promise<Ranked<PlumTarget>[]> {
+async function findBySound(playlist: Playlist, title: string, only: 'movie' | 'series' | null, options: ResolveOptions): Promise<Ranked<PlumTarget>[]> {
   const key = soundKey(title);
   if (key.length < 2) return [];
   const entries = await soundEntries(playlist);
+  check(options);
   const hits = entries
     .filter((e) => (!only || e.kind === only) && (e.key === key || e.key.length >= 4))
     .map((e) => ({ e, score: soundScore(title, e.name) }))
@@ -323,41 +369,55 @@ async function findBySound(playlist: Playlist, title: string, only: 'movie' | 's
  * (programmes or channels that did match don't count: "volley" finds volleyball in the guide,
  * the user meant WALL·E). With sound-alikes in the list nothing plays at once.
  */
-async function withSoundAlikes(playlist: Playlist, title: string, found: Ranked<PlumTarget>[], only: 'movie' | 'series' | null): Promise<Resolution> {
+async function withSoundAlikes(playlist: Playlist, title: string, found: Ranked<PlumTarget>[], only: 'movie' | 'series' | null, options: ResolveOptions): Promise<Resolution> {
   const strong = found.some((r) => (r.item.kind === 'movie' || r.item.kind === 'series') && r.score >= WEAK_SCORE);
-  const sounds = strong ? [] : await findBySound(playlist, title, only).catch(() => []);
+  if (!strong) partial(options, found);
+  const sounds = strong ? [] : await findBySound(playlist, title, only, options).catch((error: unknown) => {
+    if (error instanceof PlumCancelled) throw error;
+    return [];
+  });
+  check(options);
   const resolution = finish([...found, ...sounds]);
   return sounds.length ? { ...resolution, sure: false } : resolution;
 }
 
 // ---- the command
 
+const asMovies = (list: MovieItem[], title: string): Ranked<PlumTarget>[] =>
+  rankByName(list, title, (m) => m.name).map((r) => ({ item: { kind: 'movie' as const, movie: r.item }, score: r.score }));
+const asSeries = (list: SeriesItem[], title: string, season: number | null = null, episode: number | null = null): Ranked<PlumTarget>[] =>
+  rankByName(list, title, (s) => s.name).map((r) => ({ item: { kind: 'series' as const, series: r.item, season, episode }, score: r.score }));
+
+/**
+ * What a parsed "play …" means. Quick parts first (categories, movies, series, channels), reported
+ * through `onUpdate`; slow ones (TV guide, providers' archives) after, and only when the request
+ * can mean them: "horror movies" never scans the guide.
+ */
 export async function resolvePlay(playlist: Playlist, cmd: PlayCommand, options: ResolveOptions): Promise<Resolution> {
   const now = options.now ?? Date.now();
   const shift = options.offsetHours * 3_600_000;
   const id = playlist.id;
   const title = cmd.title;
+  const variants = searchVariants(title);
 
   if (cmd.prefer === 'category') return finish(await findCategories(id, cmd.phrase));
   // "Film 2026" said like a kind: its categories count too.
   const categories = cmd.prefer === 'catchup' ? [] : await findCategories(id, cmd.phrase);
+  check(options);
 
   if (cmd.prefer === 'live') {
     const channels = await findChannels(id, title);
     return finish([...channels.map((r) => ({ item: { kind: 'live' as const, channel: r.item }, score: r.score })), ...categories]);
   }
   if (cmd.prefer === 'movie') {
-    const movies = await Promise.all(searchVariants(title).map((q) => listMovies(id, ALL, q, 'az', PER_QUERY)));
-    const found = rankByName(movies.flat(), title, (m) => m.name).map((r) => ({ item: { kind: 'movie' as const, movie: r.item }, score: r.score }));
-    return withSoundAlikes(playlist, title, [...found, ...categories], 'movie');
+    const found = asMovies(await listMovies(id, ALL, variants, 'az', PER_QUERY), title);
+    check(options);
+    return withSoundAlikes(playlist, title, [...found, ...categories], 'movie', options);
   }
   if (cmd.prefer === 'series') {
-    const series = await Promise.all(searchVariants(title).map((q) => listSeries(id, ALL, q, 'az', PER_QUERY)));
-    const found = rankByName(series.flat(), title, (s) => s.name).map((r) => ({
-      item: { kind: 'series' as const, series: r.item, season: cmd.season, episode: cmd.episode },
-      score: r.score,
-    }));
-    return withSoundAlikes(playlist, title, [...found, ...categories], 'series');
+    const found = asSeries(await listSeries(id, ALL, variants, 'az', PER_QUERY), title, cmd.season, cmd.episode);
+    check(options);
+    return withSoundAlikes(playlist, title, [...found, ...categories], 'series', options);
   }
 
   const window: TimeWindow = cmd.when ? whenWindow(cmd.when, now) : { from: now - BACK_MS, to: now + 60_000, around: now };
@@ -365,45 +425,65 @@ export async function resolvePlay(playlist: Playlist, cmd: PlayCommand, options:
   if (cmd.prefer === 'catchup') {
     // "masterchef croatia": search "masterchef", look in Croatia first.
     const looking = { ...cmd, title: withoutCountry(title) };
-    // The stored guide and the providers' archives; ended ones replay, one on now ("… from today") plays live.
-    const [guide, archives] = await Promise.all([
-      findProgrammes(id, looking.title, window, shift),
-      fromArchives(playlist, looking, `${title} ${cmd.channel ?? ''}`, window, options, now),
-    ]);
     const seen = new Set<string>();
-    const hits = [...archives.items, ...guide].filter((a) => {
-      const key = `${a.channel.id}|${a.programme.start}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return watchable(a, now);
-    });
-    const inCountry = (c: Channel) => (c.categoryId && archives.countryCategories.has(c.categoryId) ? COUNTRY_BONUS : 0);
-    const ranked = rankProgrammes(hits, looking.title, cmd.channel, window.around);
-    if (ranked.length) {
-      return finish(ranked.map((r) => ({ item: programmeTarget(r.item, now), score: r.score + inCountry(r.item.channel) })));
-    }
+    const hits: AiredItem[] = [];
+    const take = (list: AiredItem[]) => {
+      for (const a of list) {
+        const key = `${a.channel.id}|${a.programme.start}`;
+        if (!seen.has(key) && watchable(a, now)) {
+          seen.add(key);
+          hits.push(a);
+        }
+      }
+    };
+    let countryCategories = new Set<string>();
+    const ranked = () => {
+      const inCountry = (c: Channel) => (c.categoryId && countryCategories.has(c.categoryId) ? COUNTRY_BONUS : 0);
+      return rankProgrammes(hits, looking.title, cmd.channel, window.around).map((r) => ({ item: programmeTarget(r.item, now), score: r.score + inCountry(r.item.channel) }));
+    };
+    // The stored guide answers first (shown at once); the providers' archives take longer.
+    const archives = fromArchives(playlist, looking, `${title} ${cmd.channel ?? ''}`, window, options, now);
+    archives.catch(() => undefined);
+    take(await findProgrammes(id, looking.title, window, shift));
+    check(options);
+    partial(options, ranked());
+    const found = await archives;
+    countryCategories = found.countryCategories;
+    take(found.items);
+    const all = ranked();
+    if (all.length) return finish(all);
     // Nothing by that title: maybe it was a channel ("RTL from yesterday").
     const [channel] = await findChannels(id, cmd.channel ?? title);
+    check(options);
     if (channel && channel.score >= 0.85) return { ...finish(await channelReplays(playlist, channel.item, window, options, now)), sure: false };
     return NOTHING;
   }
 
-  // A plain "play X": a channel, something on now, a movie or series, or the latest replay.
-  const [channels, programmes, movies, series] = await Promise.all([
-    findChannels(id, title),
-    findProgrammes(id, title, window, shift),
-    Promise.all(searchVariants(title).map((q) => listMovies(id, ALL, q, 'az', PER_QUERY))).then((l) => l.flat()),
-    Promise.all(searchVariants(title).map((q) => listSeries(id, ALL, q, 'az', PER_QUERY))).then((l) => l.flat()),
+  // A plain "play X". A kind said ("horror movies", "serije netflix", "kanali sport") limits it to
+  // that section; otherwise channels, movies and series first, then the TV guide (the slow part).
+  const section = saidSection(cmd.phrase);
+  const all: Ranked<PlumTarget>[] = [...categories];
+  const wants = (s: 'live' | 'movies' | 'series') => !section || section === s;
+  const [channels, movies, series] = await Promise.all([
+    wants('live') ? findChannels(id, title) : [],
+    wants('movies') ? listMovies(id, ALL, variants, 'az', PER_QUERY) : [],
+    wants('series') ? listSeries(id, ALL, variants, 'az', PER_QUERY) : [],
   ]);
-  const all: Ranked<PlumTarget>[] = [];
+  check(options);
   for (const r of channels) if (r.score >= 0.85) all.push({ item: { kind: 'live', channel: r.item }, score: r.score + 0.1 });
-  for (const r of rankProgrammes(programmes.filter((a) => watchable(a, now)), title, cmd.channel, now)) {
-    const target = programmeTarget(r.item, now);
-    // On now beats a replay of the same programme.
-    all.push({ item: target, score: target.kind === 'live' ? r.score + 0.05 : r.score - 0.05 });
+  all.push(...asMovies(movies, title), ...asSeries(series, title));
+
+  if (!section) {
+    partial(options, all);
+    const programmes = await findProgrammes(id, title, window, shift);
+    check(options);
+    for (const r of rankProgrammes(programmes.filter((a) => watchable(a, now)), title, cmd.channel, now)) {
+      const target = programmeTarget(r.item, now);
+      // On now beats a replay of the same programme.
+      all.push({ item: target, score: target.kind === 'live' ? r.score + 0.05 : r.score - 0.05 });
+    }
   }
-  for (const r of rankByName(movies, title, (m) => m.name)) all.push({ item: { kind: 'movie', movie: r.item }, score: r.score });
-  for (const r of rankByName(series, title, (s) => s.name)) all.push({ item: { kind: 'series', series: r.item, season: null, episode: null }, score: r.score });
-  all.push(...categories);
-  return withSoundAlikes(playlist, title, all, null);
+  const soundsLike = section === 'movies' ? 'movie' : section === 'series' ? 'series' : null;
+  if (section === 'live') return finish(all);
+  return withSoundAlikes(playlist, title, all, soundsLike, options);
 }

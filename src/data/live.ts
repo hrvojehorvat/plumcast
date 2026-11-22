@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { M3uCatchup } from '../core/models';
-import { likeContains } from '../core/search';
+import { likeAny } from '../core/search';
 import { getDb } from './db';
 
 /** Built-in lists shown above the provider's categories. */
@@ -140,7 +140,7 @@ const NOT_HIDDEN = `(l.category_id IS NULL OR l.category_id NOT IN
  * Channels of one category (or a built-in list), optionally filtered by a search text.
  * The search only looks inside that list, which keeps it fast on big playlists.
  */
-export async function listChannels(playlistId: number, categoryId: string, query = '', archiveOnly = false, limit?: number): Promise<Channel[]> {
+export async function listChannels(playlistId: number, categoryId: string, query: string | readonly string[] = '', archiveOnly = false, limit?: number): Promise<Channel[]> {
   const db = await getDb();
   const params: (string | number)[] = [playlistId];
   let join = FAV_JOIN;
@@ -158,9 +158,11 @@ export async function listChannels(playlistId: number, categoryId: string, query
     where += ' AND l.category_id = ?';
     params.push(categoryId);
   }
-  if (query.trim()) {
-    where += ` AND l.search LIKE ? ESCAPE '\\'`;
-    params.push(likeContains(query));
+  // One spelling, or several matched in one scan (Plum).
+  const match = likeAny('l.search', query);
+  if (match) {
+    where += ` AND ${match.sql}`;
+    params.push(...match.params);
   }
   const rows = await db.getAllAsync<ChannelRow>(`SELECT ${CHANNEL_COLUMNS} FROM live l ${join} WHERE ${where} ORDER BY ${order}${limit ? ` LIMIT ${Math.floor(limit)}` : ''}`, ...params);
   return rows.map(toChannel);
@@ -233,7 +235,8 @@ export async function recentlyAired(playlistId: number, categoryId: string, from
  */
 export async function searchProgrammes(
   playlistId: number,
-  query: string,
+  /** One spelling, or several matched in one scan of the guide (Plum). */
+  query: string | readonly string[],
   from: number,
   to: number,
   around: number,
@@ -242,12 +245,12 @@ export async function searchProgrammes(
   ignoreSpaces = false,
 ): Promise<AiredItem[]> {
   const db = await getDb();
-  const match = ignoreSpaces ? `(search LIKE ? ESCAPE '\\' OR replace(search, ' ', '') LIKE ? ESCAPE '\\')` : `search LIKE ? ESCAPE '\\'`;
-  const patterns = ignoreSpaces ? [likeContains(query), likeContains(query.replace(/\s+/g, ''))] : [likeContains(query)];
+  const like = likeAny('search', query, ignoreSpaces);
+  if (!like) return [];
   const rows = await db.getAllAsync<ChannelRow & { p_start: number; p_stop: number; p_title: string; p_description: string | null }>(
     `SELECT ${CHANNEL_COLUMNS}, e.start AS p_start, e.stop AS p_stop, e.title AS p_title, e.description AS p_description, MIN(l.sort) AS first_sort
        FROM (SELECT channel, start, stop, title, description FROM epg
-              WHERE playlist_id = ? AND stop > ? AND start < ? AND ${match}
+              WHERE playlist_id = ? AND stop > ? AND start < ? AND ${like.sql}
               ORDER BY abs(start - ?) LIMIT ${Math.floor(limit) * 3}) e
        CROSS JOIN live l ON l.playlist_id = ? AND lower(l.epg_id) = e.channel
        ${FAV_JOIN}
@@ -255,7 +258,7 @@ export async function searchProgrammes(
       GROUP BY e.channel, e.start
       ORDER BY abs(e.start - ?)
       LIMIT ${Math.floor(limit)}`,
-    playlistId, from, to, ...patterns, around, playlistId, around,
+    playlistId, from, to, ...like.params, around, playlistId, around,
   );
   return rows.map((r) => ({ channel: toChannel(r), programme: { start: r.p_start, end: r.p_stop, title: r.p_title, description: r.p_description } }));
 }

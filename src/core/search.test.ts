@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSearchable, orderProgrammeHits, rememberSearch } from './search';
+import { isSearchable, likeAny, orderProgrammeHits, rememberSearch } from './search';
 
 describe('isSearchable', () => {
   it('needs two letters after trimming', () => {
@@ -37,5 +37,23 @@ describe('orderProgrammeHits', () => {
       hit('soon', now + 1000, now + 2000),
     ];
     expect(orderProgrammeHits(hits, now).map((h) => h.name)).toEqual(['live', 'soon', 'later', 'recent', 'old']);
+  });
+});
+
+describe('likeAny', () => {
+  it('matches any spelling in one condition', () => {
+    expect(likeAny('m.search', ['Horror movies', 'horror', 'HORROR'])).toEqual({
+      sql: "(m.search LIKE ? ESCAPE '\\' OR m.search LIKE ? ESCAPE '\\')",
+      params: ['%horror movies%', '%horror%'],
+    });
+  });
+
+  it('can also ignore spaces in the column', () => {
+    expect(likeAny('search', 'master chef', true)?.params).toEqual(['%master chef%', '%masterchef%']);
+    expect(likeAny('search', 'master chef', true)?.sql).toContain("replace(search, ' ', '') LIKE ?");
+  });
+
+  it('is null with nothing to match', () => {
+    expect(likeAny('search', ['', '  '])).toBeNull();
   });
 });
