@@ -126,6 +126,8 @@ export const en = {
   'player.channelUp': "Next channel",
   'player.channelDown': "Previous channel",
   'player.close': "Close",
+  "player.showStats": "Show stats",
+  "player.hideStats": "Hide stats",
   'player.error': "This channel can't be played right now.",
   'player.errorHint': "Your provider may allow only one stream at a time, or the channel is offline.",
   'player.noChannel': "No channel with number {n}",

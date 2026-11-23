@@ -128,6 +128,8 @@ export const de: Messages = {
   'player.channelUp': "Nächster Sender",
   'player.channelDown': "Vorheriger Sender",
   'player.close': "Schließen",
+  "player.showStats": "Statistik zeigen",
+  "player.hideStats": "Statistik ausblenden",
   'player.error': "Dieser Sender kann gerade nicht abgespielt werden.",
   'player.errorHint': "Dein Anbieter erlaubt vielleicht nur einen Stream gleichzeitig, oder der Sender ist offline.",
   'player.noChannel': "Kein Sender mit Nummer {n}",

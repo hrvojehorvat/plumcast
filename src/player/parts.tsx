@@ -1,9 +1,20 @@
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { getPrefs, setPrefs } from '../data/prefs';
 import { Icon, type IconName } from '../ui/Icon';
 import { Text } from '../ui/Text';
 import { colors, radius } from '../ui/tokens';
 
 export type Action = { key: string; icon: IconName; label: string; run: () => void; filled?: boolean };
+
+/**
+ * Show / hide the playback stats corner (the same switch as Settings → Playback stats, so it stays for the
+ * next video). Last before Close in the button row: reachable with ◀/▶, out of the way. Android only: the
+ * browser player has no stats. Pass the current setting (usePrefs) so the label follows it.
+ */
+export function statsActions(on: boolean, t: (key: 'player.showStats' | 'player.hideStats') => string): Action[] {
+  if (Platform.OS === 'web') return [];
+  return [{ key: 'stats', icon: 'stats', filled: false, label: t(on ? 'player.hideStats' : 'player.showStats'), run: () => void setPrefs({ playbackStats: !getPrefs().playbackStats }) }];
+}
 
 /** The row of buttons in the player panel. The remote moves `highlight`; touch and mouse press directly. */
 export function ActionBar({ actions, highlight, onRun }: { actions: Action[]; highlight: number; onRun: (action: Action) => void }) {

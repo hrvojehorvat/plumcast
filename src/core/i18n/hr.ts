@@ -128,6 +128,8 @@ export const hr: Messages = {
   'player.channelUp': "Sljedeći kanal",
   'player.channelDown': "Prethodni kanal u listi",
   'player.close': "Zatvori",
+  "player.showStats": "Prikaži statistiku",
+  "player.hideStats": "Sakrij statistiku",
   'player.error': "Ovaj kanal se trenutno ne može reproducirati.",
   'player.errorHint': "Tvoj pružatelj možda dopušta samo jedan stream istovremeno ili je kanal offline.",
   'player.noChannel': "Nema kanala s brojem {n}",

@@ -6,13 +6,14 @@ import { findReplay } from '../data/catchup';
 import { useNow } from '../data/epg';
 import { usePlaylists } from '../data/store';
 import { recordSpeed } from '../data/netSpeed';
+import { usePrefs } from '../data/prefs';
 import { useI18n } from '../ui/i18n';
 import { Text } from '../ui/Text';
 import { colors } from '../ui/tokens';
 import { useQuery } from '../ui/useQuery';
 import { useTimeFormat } from '../ui/useTimeFormat';
 import type { PlayerKey } from './keys';
-import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, type Action } from './parts';
+import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, statsActions, type Action } from './parts';
 import { clampSeek, seekStep } from './seek';
 import { livePlayer, type LiveSession, type Replay } from './store';
 import { usePlayerKeys } from './usePlayerKeys';
@@ -48,6 +49,7 @@ const fresh = (url: string | null): Playback => ({ url, attempt: 0, retries: 0, 
  */
 export function ReplayPlayer({ session, replay }: { session: LiveSession; replay: Replay }) {
   const { t, lang } = useI18n();
+  const { playbackStats } = usePrefs();
   const time = useTimeFormat();
   const now = useNow(15_000);
   const { list } = usePlaylists();
@@ -167,6 +169,7 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
     { key: 'fwd', icon: 'forward', label: t('player.forward10'), run: () => jump(position + TEN_MIN) },
     { key: 'start', icon: 'catchup', label: t('player.restart'), run: () => jump(programme.start) },
     { key: 'live', icon: 'live', label: t('player.goLive'), run: livePlayer.goLive },
+    ...statsActions(playbackStats, t),
     { key: 'close', icon: 'close', label: t('player.close'), run: livePlayer.close },
   ];
 

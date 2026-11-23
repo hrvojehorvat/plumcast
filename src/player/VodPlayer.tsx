@@ -9,12 +9,13 @@ import { getEpisodeProgress, saveEpisodeProgress } from '../data/series';
 import { usePlaylists } from '../data/store';
 import { recordSpeed } from '../data/netSpeed';
 import { episodeUrl, movieUrl, useMovieInfo } from '../data/vod';
+import { usePrefs } from '../data/prefs';
 import { useI18n } from '../ui/i18n';
 import { Text } from '../ui/Text';
 import { colors } from '../ui/tokens';
 import { useLatest, useQuery } from '../ui/useQuery';
 import type { PlayerKey } from './keys';
-import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, type Action } from './parts';
+import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, statsActions, type Action } from './parts';
 import { moviePlayer, type VodItem, type VodSession } from './store';
 import { usePlayerKeys } from './usePlayerKeys';
 import { createStallWatch } from '../core/stallWatch';
@@ -60,6 +61,7 @@ async function playNext(session: VodSession) {
  */
 export function VodPlayer({ session }: { session: VodSession }) {
   const { t } = useI18n();
+  const { playbackStats } = usePrefs();
   const { list } = usePlaylists();
   const playlist = list.find((p) => p.id === session.playlistId) ?? null;
   const { item } = session;
@@ -208,6 +210,7 @@ export function VodPlayer({ session }: { session: VodSession }) {
     { key: 'fwd', icon: 'forward', label: t('player.forward10'), run: () => jump(positionMs + TEN_MIN) },
     { key: 'start', icon: 'catchup', label: t('player.restart'), run: () => jump(0) },
     ...(next ? [{ key: 'nextEp', icon: 'next' as const, label: t('series.nextEpisode'), run: () => void playNext(session) }] : []),
+    ...statsActions(playbackStats, t),
     close,
   ];
   const card: Action[] = counting

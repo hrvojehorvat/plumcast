@@ -8,13 +8,14 @@ import { addRecent, channelByNumber, setFavorite } from '../data/live';
 import { useNowNext } from '../data/epg';
 import { usePlaylists } from '../data/store';
 import { recordSpeed } from '../data/netSpeed';
+import { usePrefs } from '../data/prefs';
 import { useStreamUrl } from '../live/useLive';
 import { useI18n } from '../ui/i18n';
 import { Icon } from '../ui/Icon';
 import { Text } from '../ui/Text';
 import { colors } from '../ui/tokens';
 import { addDigit, type PlayerKey } from './keys';
-import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, type Action } from './parts';
+import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, statsActions, type Action } from './parts';
 import { ReplayPlayer } from './ReplayPlayer';
 import { VodPlayer } from './VodPlayer';
 import { livePlayer, useLiveSession, useVodSession, vodKey, type LiveSession } from './store';
@@ -45,6 +46,7 @@ const freshPlayback = (url: string | null): Playback => ({ url, attempt: 0, play
 
 function LivePlayer({ session }: { session: LiveSession }) {
   const { t } = useI18n();
+  const { playbackStats } = usePrefs();
   const { list: playlistList } = usePlaylists();
   const playlist = playlistList.find((p) => p.id === session.playlistId) ?? null;
   const channel = session.current;
@@ -134,6 +136,7 @@ function LivePlayer({ session }: { session: LiveSession }) {
     ...(replayDays(channel) > 0 ? [{ key: 'archive', icon: 'archive' as const, label: t('player.catchup'), run: openArchive }] : []),
     { key: 'down', icon: 'up' as const, label: t('player.channelDown'), run: () => livePlayer.step(-1) },
     { key: 'up', icon: 'down' as const, label: t('player.channelUp'), run: () => livePlayer.step(1) },
+    ...statsActions(playbackStats, t),
     { key: 'close', icon: 'close' as const, label: t('player.close'), run: livePlayer.close },
   ];
 
