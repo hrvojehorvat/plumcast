@@ -17,6 +17,7 @@ import type { PlayerKey } from './keys';
 import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, type Action } from './parts';
 import { moviePlayer, type VodItem, type VodSession } from './store';
 import { usePlayerKeys } from './usePlayerKeys';
+import { createStallWatch } from '../core/stallWatch';
 import { useBufferLevel } from './useBufferLevel';
 import { Video } from './Video';
 
@@ -68,7 +69,11 @@ export function VodPlayer({ session }: { session: VodSession }) {
   const info = useMovieInfo(playlist, movie?.id ?? null);
   // How far to load ahead, decided once per video before it starts (Auto uses the provider's bitrate).
   const bitrateBps = item.kind === 'movie' ? (info === undefined ? undefined : (info?.bitrateBps ?? null)) : item.episode.bitrateBps;
-  const buffer = useBufferLevel(`${item.kind}|${id}`, session.playlistId, bitrateBps);
+  const { level: buffer, stepUp } = useBufferLevel(`${item.kind}|${id}`, session.playlistId, bitrateBps);
+  // Auto: a stall can move the buffer up a level (src/core/stallWatch.ts), one watch per video.
+  const [stallWatch, setStallWatch] = useState(() => ({ id, watch: createStallWatch() }));
+  if (stallWatch.id !== id) setStallWatch({ id, watch: createStallWatch() });
+  const watch = stallWatch.watch;
   const { lock, unlock } = useLockSpatialNavigation();
 
   const url = useQuery(playlist ? `${playlist.id}|${item.kind}|${id}` : null, () => itemUrl(playlist!, item));
@@ -164,6 +169,7 @@ export function VodPlayer({ session }: { session: VodSession }) {
     const at = clampTarget(to);
     if (ended || broken) return restartAt(at);
     setPositionMs(at);
+    watch.jumped();
     setSeekReq({ seconds: at / 1000 });
     setPaused(false);
   };
@@ -285,9 +291,19 @@ export function VodPlayer({ session }: { session: VodSession }) {
             setBuffering(false);
             setAttempt((a) => (a.retries ? { ...a, retries: 0 } : a));
           }}
-          onBuffering={setBuffering}
+          onBuffering={(b) => {
+            setBuffering(b);
+            // Stalled while playing: on Auto, maybe restart here with more buffer (the picture is frozen anyway).
+            if (b && latest.current.playing && watch.stall(bitrateBps ?? null) && stepUp()) {
+              watch.reset();
+              restartAt(latest.current.positionMs);
+            }
+          }}
           onDuration={(s) => setDurationMs(s * 1000)}
-          onBandwidth={(bps) => recordSpeed(session.playlistId, bps)}
+          onBandwidth={(bps) => {
+            recordSpeed(session.playlistId, bps);
+            watch.speed(bps);
+          }}
           buffer={buffer}
           onProgress={(s) => {
             // The first reports can still be 0 before the start position is applied.

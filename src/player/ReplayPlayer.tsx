@@ -16,6 +16,7 @@ import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighl
 import { clampSeek, seekStep } from './seek';
 import { livePlayer, type LiveSession, type Replay } from './store';
 import { usePlayerKeys } from './usePlayerKeys';
+import { createStallWatch } from '../core/stallWatch';
 import { useBufferLevel } from './useBufferLevel';
 import { Video } from './Video';
 
@@ -54,7 +55,13 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
   const channel = session.current;
   const { programme, from } = replay;
   // Replays don't say their bitrate: Auto starts low (decided once per programme; a jump keeps it).
-  const buffer = useBufferLevel(`${channel.id}|${programme.start}`, session.playlistId, null);
+  const replayKey = `${channel.id}|${programme.start}`;
+  const { level: buffer, stepUp } = useBufferLevel(replayKey, session.playlistId, null);
+  // Auto: a stall can move the buffer up a level (src/core/stallWatch.ts). A jump here is a new stream, so
+  // its loading never counts (only stalls after the picture started do).
+  const [stallWatch, setStallWatch] = useState(() => ({ key: replayKey, watch: createStallWatch() }));
+  if (stallWatch.key !== replayKey) setStallWatch({ key: replayKey, watch: createStallWatch() });
+  const watch = stallWatch.watch;
   const { lock, unlock } = useLockSpatialNavigation();
 
   // Which copy of the channel has the recording is checked before playing; the one that worked
@@ -253,12 +260,22 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
           key={`${url}#${status.attempt}`}
           url={url}
           live={false}
-          onBandwidth={(bps) => recordSpeed(session.playlistId, bps)}
+          onBandwidth={(bps) => {
+            recordSpeed(session.playlistId, bps);
+            watch.speed(bps);
+          }}
           buffer={buffer}
           paused={paused}
           style={StyleSheet.absoluteFill}
           onPlaying={() => update({ playing: true, buffering: false, retries: 0 })}
-          onBuffering={(buffering) => update({ buffering })}
+          onBuffering={(buffering) => {
+            update({ buffering });
+            // Stalled while playing: on Auto, maybe restart here with more buffer (the picture is frozen anyway).
+            if (buffering && status.playing && watch.stall(null) && stepUp()) {
+              watch.reset();
+              jump(position);
+            }
+          }}
           onProgress={(seconds) => update((p) => (Math.floor(seconds) === Math.floor(p.seconds) && p.base !== null ? {} : { seconds, base: p.base ?? seconds }))}
           onEnd={() => {
             // Stopping well before the programme's end is a dropped stream (or the provider's
