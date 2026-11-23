@@ -25,7 +25,10 @@ describe('playback stats', () => {
 
 
   it('adds the average Auto went by for files', () => {
-    expect(statsLines({ ...EMPTY_STATS, networkBps: 9_300_000 }, 'medium', 6_400_000)[1]).toBe('Net 9.3 Mb/s · Stream – · Avg 6.4 Mb/s');
+    expect(statsLines({ ...EMPTY_STATS, networkBps: 9_300_000 }, 'medium', 6_400_000)[1]).toBe('Net 9.3 Mb/s · Stream – · Avg 6.4 Mb/s · 1.45× ok');
+    expect(statsLines({ ...EMPTY_STATS, networkBps: 9_300_000 }, 'large', 19_500_000)[1]).toBe('Net 9.3 Mb/s · Stream – · Avg 19.5 Mb/s · 0.48× too slow');
+    expect(statsLines({ ...EMPTY_STATS, networkBps: 9_300_000 }, 'large', 10_000_000)[1]).toContain('0.93× tight');
+    expect(statsLines({ ...EMPTY_STATS }, 'small', 6_400_000)[1]).toBe('Net – · Stream – · Avg 6.4 Mb/s');
     expect(statsLines({ ...EMPTY_STATS, networkBps: 9_300_000 })[1]).toBe('Net 9.3 Mb/s · Stream –');
   });
 

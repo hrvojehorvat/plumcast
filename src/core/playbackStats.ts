@@ -42,9 +42,20 @@ export function statsLines(s: PlaybackStats, level: string | null = null, averag
   const picture = [s.width && s.height ? `${s.width}×${s.height}` : '', codecName(s.codec)].filter(Boolean).join(' · ');
   return [
     picture || '–',
-    `Net ${mbps(s.networkBps)} · Stream ${mbps(s.streamBps)}${averageBps ? ` · Avg ${mbps(averageBps)}` : ''}`,
+    `Net ${mbps(s.networkBps)} · Stream ${mbps(s.streamBps)}${averageBps ? ` · Avg ${mbps(averageBps)}${ratioText(s.networkBps, averageBps)}` : ''}`,
     `Buffer ${bufferText(s.bufferedS)}${level ? ` (${level})` : ''} · Stalls ${s.stalls}`,
   ];
+}
+
+/**
+ * Download speed ÷ the video's average, the number Auto buffer decides on (src/core/buffer.ts):
+ * at least 1.1× keeps up, 0.8–1.1× is tight, below that stalls are certain.
+ */
+export function ratioText(networkBps: number, averageBps: number): string {
+  if (!(networkBps > 0) || !(averageBps > 0)) return '';
+  const ratio = networkBps / averageBps;
+  const verdict = ratio >= 1.1 ? 'ok' : ratio >= 0.8 ? 'tight' : 'too slow';
+  return ` · ${ratio.toFixed(2)}× ${verdict}`;
 }
 
 /** Live streams report nonsense (no length to take a percentage of): anything outside 0 s – 1 day is "–". */

@@ -1,10 +1,9 @@
 import { StyleSheet, View } from 'react-native';
-import type { BufferLevel } from '../core/buffer';
 import { statsLines, type PlaybackStats } from '../core/playbackStats';
 import { Text } from '../ui/Text';
 
 /** Playback stats in the top-left corner (Settings → Playback). Small, and never in the way of the controls. */
-export function Stats({ stats, level, averageBps }: { stats: PlaybackStats; level: BufferLevel | null; averageBps: number | null }) {
+export function Stats({ stats, level, averageBps }: { stats: PlaybackStats; level: string | null; averageBps: number | null }) {
   return (
     <View style={styles.box} pointerEvents="none">
       {statsLines(stats, level, averageBps).map((line, i) => (
