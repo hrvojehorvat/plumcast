@@ -13,10 +13,12 @@ export interface Prefs {
   lang: Lang | null;
   /** Xtream live channels as MPEG-TS (`.ts`, default) or HLS (`.m3u8`). */
   streamFormat: StreamFormat;
+  /** Shows resolution, download speed, buffer and stalls in a corner of the player (Android). */
+  playbackStats: boolean;
 }
 
 export const EPG_OFFSET_LIMIT = 12;
-const DEFAULTS: Prefs = { epgOffsetHours: 0, clock24: true, lang: null, streamFormat: 'ts' };
+const DEFAULTS: Prefs = { epgOffsetHours: 0, clock24: true, lang: null, streamFormat: 'ts', playbackStats: false };
 const KEY = 'prefs';
 
 let prefs: Prefs = DEFAULTS;
@@ -62,5 +64,6 @@ function sanitize(p: Prefs): Prefs {
     clock24: p.clock24 !== false,
     lang: p.lang && LANGS.includes(p.lang) ? p.lang : null,
     streamFormat: p.streamFormat === 'm3u8' ? 'm3u8' : 'ts',
+    playbackStats: p.playbackStats === true,
   };
 }

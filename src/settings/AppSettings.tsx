@@ -38,7 +38,7 @@ export function LanguageSettings() {
 /** Settings → Playback: how Xtream live channels are requested. */
 export function PlaybackSettings() {
   const { t } = useI18n();
-  const { streamFormat } = usePrefs();
+  const { streamFormat, playbackStats } = usePrefs();
   return (
     <View style={styles.section}>
       <Label>{t('settings.playback')}</Label>
@@ -52,6 +52,18 @@ export function PlaybackSettings() {
           ]}
           value={streamFormat}
           onChange={(v) => void setPrefs({ streamFormat: v })}
+        />
+      </View>
+      <View style={styles.item}>
+        <Text weight="semibold" size={16}>{t('settings.stats')}</Text>
+        <Text size={13} color={colors.textMuted} style={styles.hint}>{t('settings.statsHint')}</Text>
+        <Segmented<'off' | 'on'>
+          options={[
+            { value: 'off', label: t('settings.statsOff') },
+            { value: 'on', label: t('settings.statsOn') },
+          ]}
+          value={playbackStats ? 'on' : 'off'}
+          onChange={(v) => void setPrefs({ playbackStats: v === 'on' })}
         />
       </View>
     </View>
