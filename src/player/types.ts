@@ -23,4 +23,6 @@ export interface VideoProps {
   seek?: { seconds: number } | null;
   /** Files: length in seconds once known. */
   onDuration?: (seconds: number) => void;
+  /** Measured download speed (bit/s), now and then while the stream loads (Android). Not in the first seconds. */
+  onBandwidth?: (bps: number) => void;
 }

@@ -1,4 +1,5 @@
 import { list, num, obj, str } from './coerce';
+import { bitrateFromInfo } from './netSpeed';
 import type { XtreamLogin } from './xtream';
 
 /** What `get_vod_info` adds to a movie from the list. Every field is optional on real servers. */
@@ -17,6 +18,8 @@ export interface MovieInfo {
   /** YouTube video id. */
   trailer: string | null;
   ext: string | null;
+  /** The file's average bitrate (bit/s) from `info.bitrate`; null when the server doesn't say. */
+  bitrateBps: number | null;
 }
 
 export const text = (v: unknown): string | null => {
@@ -94,6 +97,7 @@ export function parseVodInfo(json: unknown): MovieInfo {
     backdrop: backdrops[0] ?? text(info.backdrop_path),
     trailer: youtubeId(str(info.youtube_trailer) ?? str(info.trailer)),
     ext: text(data.container_extension),
+    bitrateBps: bitrateFromInfo(num(info.bitrate)),
   };
 }
 

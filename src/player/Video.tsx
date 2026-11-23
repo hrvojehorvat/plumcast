@@ -24,14 +24,18 @@ function fileBufferConfig(level: BufferLevel): BufferConfig {
   };
 }
 
+/** Media3's first speed reports are its built-in guess, not a measurement: ignored for this long. */
+const BANDWIDTH_SETTLE_MS = 5_000;
+
 /** Android / Fire TV playback through Media3 (ExoPlayer): HLS, MPEG-TS, MP4, MKV. */
-export function Video({ url, live = true, muted, paused, style, onPlaying, onBuffering, onError, onProgress, onEnd, startAt, seek, onDuration }: VideoProps) {
+export function Video({ url, live = true, muted, paused, style, onPlaying, onBuffering, onError, onProgress, onEnd, startAt, seek, onDuration, onBandwidth }: VideoProps) {
   const ref = useRef<VideoRef>(null);
   const { playbackStats, movieBuffer } = usePrefs();
   // Read once per stream: a new buffer would restart the player mid-video. A change applies to the next one.
   const [bufferConfig] = useState(() => (live ? undefined : fileBufferConfig(movieBuffer)));
   const [stats, setStats] = useState<PlaybackStats>(EMPTY_STATS);
   const started = useRef(false);
+  const [mountedAt] = useState(() => Date.now());
   useEffect(() => {
     if (seek && Number.isFinite(seek.seconds)) ref.current?.seek(Math.max(0, seek.seconds));
   }, [seek]);
@@ -55,7 +59,7 @@ export function Video({ url, live = true, muted, paused, style, onPlaying, onBuf
         muted={muted}
         paused={paused}
         progressUpdateInterval={500}
-        reportBandwidth={playbackStats}
+        reportBandwidth
         onLoad={(e) => {
           if (playbackStats) {
             const track = e.videoTracks.find((v) => v.selected) ?? e.videoTracks[0];
@@ -68,7 +72,10 @@ export function Video({ url, live = true, muted, paused, style, onPlaying, onBuf
           }
           if (e.duration > 0) onDuration?.(e.duration);
         }}
-        onBandwidthUpdate={playbackStats ? (e) => note({ networkBps: e.bitrate }) : undefined}
+        onBandwidthUpdate={(e) => {
+          note({ networkBps: e.bitrate });
+          if (Date.now() - mountedAt >= BANDWIDTH_SETTLE_MS) onBandwidth?.(e.bitrate);
+        }}
         onProgress={
           onProgress || playbackStats
             ? (e) => {

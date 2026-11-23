@@ -7,6 +7,7 @@ import { saveProgress } from '../data/movies';
 import type { Playlist } from '../data/playlists';
 import { getEpisodeProgress, saveEpisodeProgress } from '../data/series';
 import { usePlaylists } from '../data/store';
+import { recordSpeed } from '../data/netSpeed';
 import { episodeUrl, movieUrl, useMovieInfo } from '../data/vod';
 import { useI18n } from '../ui/i18n';
 import { Text } from '../ui/Text';
@@ -282,6 +283,7 @@ export function VodPlayer({ session }: { session: VodSession }) {
           }}
           onBuffering={setBuffering}
           onDuration={(s) => setDurationMs(s * 1000)}
+          onBandwidth={(bps) => recordSpeed(session.playlistId, bps)}
           onProgress={(s) => {
             // The first reports can still be 0 before the start position is applied.
             if (s === 0 && attempt.fromMs > 0) return;

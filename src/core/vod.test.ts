@@ -47,6 +47,13 @@ describe('movie details (get_vod_info)', () => {
     expect(parseVodInfo({ info: { director: 'Iva R., Iva R. , iva r.', cast: 'A, B, A' } })).toMatchObject({ director: 'Iva R.', cast: 'A, B' });
   });
 
+  it('reads the average bitrate (kbit/s) when the server sends it', () => {
+    expect(parseVodInfo({ info: { bitrate: 12241 } }).bitrateBps).toBe(12_241_000);
+    expect(parseVodInfo({ info: { bitrate: '2538' } }).bitrateBps).toBe(2_538_000);
+    expect(parseVodInfo({ info: { bitrate: 0 } }).bitrateBps).toBeNull();
+    expect(parseVodInfo({ info: {} }).bitrateBps).toBeNull();
+  });
+
   it('finds YouTube ids in ids and links only', () => {
     expect(youtubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=3')).toBe('dQw4w9WgXcQ');
     expect(youtubeId('https://youtu.be/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');

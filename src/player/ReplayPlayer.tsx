@@ -5,6 +5,7 @@ import { formatDay } from '../core/format';
 import { findReplay } from '../data/catchup';
 import { useNow } from '../data/epg';
 import { usePlaylists } from '../data/store';
+import { recordSpeed } from '../data/netSpeed';
 import { useI18n } from '../ui/i18n';
 import { Text } from '../ui/Text';
 import { colors } from '../ui/tokens';
@@ -249,6 +250,7 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
           key={`${url}#${status.attempt}`}
           url={url}
           live={false}
+          onBandwidth={(bps) => recordSpeed(session.playlistId, bps)}
           paused={paused}
           style={StyleSheet.absoluteFill}
           onPlaying={() => update({ playing: true, buffering: false, retries: 0 })}

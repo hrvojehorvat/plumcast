@@ -67,6 +67,11 @@ describe('series details (get_series_info)', () => {
     const info = parseSeriesInfo({ episodes: { '3': [{ id: 'x', title: 'Show S03E07' }] } }, 'Show');
     expect(info.seasons[0].episodes[0]).toMatchObject({ season: 3, number: 7 });
   });
+
+  it('reads an episode’s average bitrate (kbit/s)', () => {
+    const info = parseSeriesInfo({ episodes: { '1': [{ id: 'x', title: 'Show S01E01', info: { bitrate: '1281' } }, { id: 'y', title: 'Show S01E02' }] } }, 'Show');
+    expect(info.seasons[0].episodes.map((e) => e.bitrateBps)).toEqual([1_281_000, null]);
+  });
 });
 
 describe('M3U seasons', () => {

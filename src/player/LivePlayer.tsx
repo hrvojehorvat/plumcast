@@ -7,6 +7,7 @@ import { useTimeFormat } from '../ui/useTimeFormat';
 import { addRecent, channelByNumber, setFavorite } from '../data/live';
 import { useNowNext } from '../data/epg';
 import { usePlaylists } from '../data/store';
+import { recordSpeed } from '../data/netSpeed';
 import { useStreamUrl } from '../live/useLive';
 import { useI18n } from '../ui/i18n';
 import { Icon } from '../ui/Icon';
@@ -215,6 +216,7 @@ function LivePlayer({ session }: { session: LiveSession }) {
           key={`${url}#${status.attempt}`}
           url={url}
           style={StyleSheet.absoluteFill}
+          onBandwidth={(bps) => recordSpeed(session.playlistId, bps)}
           onPlaying={() => update({ playing: true, buffering: false })}
           onBuffering={(buffering) => update({ buffering })}
           onError={onError}

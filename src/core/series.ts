@@ -1,5 +1,6 @@
 import { list, num, obj, str } from './coerce';
 import type { StoredEpisode } from './models';
+import { bitrateFromInfo } from './netSpeed';
 import { isFinished, names, parseDuration, parseYear, text, youtubeId } from './vod';
 import type { XtreamLogin } from './xtream';
 
@@ -16,6 +17,8 @@ export interface Episode {
   ext: string | null;
   /** Full link for M3U episodes; null for Xtream (built from the login). */
   url: string | null;
+  /** The file's average bitrate (bit/s) from `info.bitrate`; null when the server doesn't say. */
+  bitrateBps: number | null;
 }
 
 export interface Season {
@@ -82,6 +85,7 @@ function parseEpisode(raw: unknown, groupSeason: number, seriesName: string): Ep
     image: text(info.movie_image) ?? text(info.cover_big),
     ext: text(e.container_extension),
     url: null,
+    bitrateBps: bitrateFromInfo(num(info.bitrate)),
   };
 }
 
@@ -138,7 +142,7 @@ export function seasonsFromStored(stored: readonly StoredEpisode[]): Season[] {
   const bySeason = new Map<number, Episode[]>();
   for (const e of stored) {
     const eps = bySeason.get(e.season) ?? [];
-    eps.push({ id: e.id, season: e.season, number: e.number, title: e.title, plot: null, durationMs: null, image: e.image, ext: null, url: e.url });
+    eps.push({ id: e.id, season: e.season, number: e.number, title: e.title, plot: null, durationMs: null, image: e.image, ext: null, url: e.url, bitrateBps: null });
     bySeason.set(e.season, eps);
   }
   return [...bySeason.entries()]
