@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoLevel, BUFFER_LEVELS, DEFAULT_BUFFER_CHOICE, fileBuffer, isBufferChoice, maxLevelForRam, resolveLevel } from './buffer';
+import { autoLevel, BUFFER_LEVELS, DEFAULT_BUFFER_CHOICE, fileBuffer, HEAD_START_MS, isBufferChoice, maxLevelForRam, needsHeadStart, resolveLevel } from './buffer';
 
 const GB = 1024 ** 3;
 const MB = 1_000_000;
@@ -56,5 +56,20 @@ describe('Auto buffer', () => {
     expect(resolveLevel('small', 1 * MB, 20 * MB, 4 * GB)).toBe('small');
     expect(resolveLevel('max', null, null, 1 * GB)).toBe('max');
     expect(resolveLevel('auto', 8.5 * MB, 5 * MB, 4 * GB)).toBe('small');
+  });
+});
+
+describe('head start when continuing', () => {
+  it('waits for more video when continuing on a tight or slow connection', () => {
+    expect(needsHeadStart(true, 9.3 * MB, 12.2 * MB)).toBe(true);
+    expect(needsHeadStart(true, 9.3 * MB, 9 * MB)).toBe(true);
+    expect(HEAD_START_MS).toBeLessThan(fileBuffer('small').aheadMs);
+  });
+
+  it('starts at once from the beginning, on a fast enough connection, or without numbers', () => {
+    expect(needsHeadStart(false, 9.3 * MB, 12.2 * MB)).toBe(false);
+    expect(needsHeadStart(true, 9.3 * MB, 6.4 * MB)).toBe(false);
+    expect(needsHeadStart(true, null, 12.2 * MB)).toBe(false);
+    expect(needsHeadStart(true, 9.3 * MB, null)).toBe(false);
   });
 });

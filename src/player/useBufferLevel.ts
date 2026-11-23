@@ -1,6 +1,6 @@
 import * as Device from 'expo-device';
 import { useEffect, useState } from 'react';
-import { BUFFER_LEVELS, maxLevelForRam, resolveLevel, type BufferLevel } from '../core/buffer';
+import { BUFFER_LEVELS, maxLevelForRam, needsHeadStart, resolveLevel, type BufferLevel } from '../core/buffer';
 import { getSpeed } from '../data/netSpeed';
 import { usePrefs } from '../data/prefs';
 
@@ -23,9 +23,11 @@ export function useBufferLevel(
   itemKey: string | null,
   playlistId: number,
   bitrateBps: number | null | undefined,
-): { level: BufferLevel | null; stepUp: () => boolean } {
+  /** Continuing in the middle (a saved position): may wait for a head start (src/core/buffer.ts). */
+  continuing = false,
+): { level: BufferLevel | null; headStart: boolean; stepUp: () => boolean } {
   const { movieBuffer } = usePrefs();
-  const [decided, setDecided] = useState<{ key: string; level: BufferLevel } | null>(null);
+  const [decided, setDecided] = useState<{ key: string; level: BufferLevel; headStart: boolean } | null>(null);
   const [waitedFor, setWaitedFor] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export function useBufferLevel(
         if (!live) return;
         const level = resolveLevel(movieBuffer, speed, bitrateBps ?? null, Device.totalMemory ?? null);
         lastLevel = level;
-        setDecided({ key: itemKey, level });
+        setDecided({ key: itemKey, level, headStart: needsHeadStart(continuing, speed, bitrateBps ?? null) });
       });
     return () => {
       live = false;
@@ -60,8 +62,8 @@ export function useBufferLevel(
     const next = BUFFER_LEVELS.indexOf(level) + 1;
     if (next > ceiling || next >= BUFFER_LEVELS.length) return false;
     lastLevel = BUFFER_LEVELS[next];
-    setDecided({ key: itemKey, level: BUFFER_LEVELS[next] });
+    setDecided((d) => ({ key: itemKey, level: BUFFER_LEVELS[next], headStart: d?.headStart ?? false }));
     return true;
   };
-  return { level, stepUp };
+  return { level, headStart: !!level && !!decided?.headStart, stepUp };
 }

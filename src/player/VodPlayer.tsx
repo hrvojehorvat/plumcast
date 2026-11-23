@@ -83,7 +83,7 @@ export function VodPlayer({ session }: { session: VodSession }) {
   const averaged = useQuery(sizeKey, async () => averageBitrate(await fileSize(sizeKey!, url!), lengthMs));
   const bitrateBps = listed !== null ? listed : sizeKey ? averaged : url === undefined ? undefined : null;
   // How far to load ahead, decided once per video before it starts.
-  const { level: buffer, stepUp } = useBufferLevel(`${item.kind}|${id}`, session.playlistId, bitrateBps);
+  const { level: buffer, headStart, stepUp } = useBufferLevel(`${item.kind}|${id}`, session.playlistId, bitrateBps, session.startMs > 0);
   // Auto: a stall can move the buffer up a level (src/core/stallWatch.ts), one watch per video.
   const [stallWatch, setStallWatch] = useState(() => ({ id, watch: createStallWatch() }));
   if (stallWatch.id !== id) setStallWatch({ id, watch: createStallWatch() });
@@ -316,6 +316,7 @@ export function VodPlayer({ session }: { session: VodSession }) {
           onDuration={(s) => setDurationMs(s * 1000)}
           onBandwidth={(bps) => recordSpeed(session.playlistId, bps)}
           buffer={buffer}
+          headStart={headStart}
           averageBps={bitrateBps ?? null}
           onProgress={(s) => {
             // The first reports can still be 0 before the start position is applied.

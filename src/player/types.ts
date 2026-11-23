@@ -28,6 +28,8 @@ export interface VideoProps {
   onBandwidth?: (bps: number) => void;
   /** Files: how far to load ahead (src/core/buffer.ts); fixed for the stream. Default Small. */
   buffer?: BufferLevel;
+  /** Files: wait for HEAD_START_MS of video before playing (continuing on a slow connection). */
+  headStart?: boolean;
   /** Files: the average bitrate Auto buffer went by (provider or size ÷ length), for the stats. */
   averageBps?: number | null;
 }

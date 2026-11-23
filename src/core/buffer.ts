@@ -69,3 +69,15 @@ export function autoLevel(speedBps: number | null, bitrateBps: number | null, ra
 export function resolveLevel(choice: BufferChoice, speedBps: number | null, bitrateBps: number | null, ramBytes: number | null): BufferLevel {
   return choice === 'auto' ? autoLevel(speedBps, bitrateBps, ramBytes) : choice;
 }
+
+/**
+ * Continuing a video in the middle: there is no reserve from its (often light) opening minutes, so on a
+ * connection that is tight or too slow for it (< 1.1×), the first busy scene would stall right away. Then
+ * the stream waits for this much video before playing, once at the start (and after a jump within it).
+ */
+export const HEAD_START_MS = 20_000;
+
+export function needsHeadStart(continuing: boolean, speedBps: number | null, bitrateBps: number | null): boolean {
+  if (!continuing || !speedBps || !bitrateBps || speedBps <= 0 || bitrateBps <= 0) return false;
+  return speedBps / bitrateBps < 1.1;
+}

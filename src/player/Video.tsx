@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import RNVideo, { BufferingStrategyType, type BufferConfig, type VideoRef } from 'react-native-video';
-import { fileBuffer, type BufferLevel } from '../core/buffer';
+import { fileBuffer, HEAD_START_MS, type BufferLevel } from '../core/buffer';
 import { EMPTY_STATS, type PlaybackStats } from '../core/playbackStats';
 import { usePrefs } from '../data/prefs';
 import { Stats } from './Stats';
@@ -14,12 +14,12 @@ import type { VideoProps } from './types';
  * one. min = max, so the time decides, not Media3's byte target. Live streams keep react-native-video's
  * defaults (live edge).
  */
-function fileBufferConfig(level: BufferLevel): BufferConfig {
+function fileBufferConfig(level: BufferLevel, headStart: boolean): BufferConfig {
   const b = fileBuffer(level);
   return {
     minBufferMs: b.aheadMs,
     maxBufferMs: b.aheadMs,
-    bufferForPlaybackMs: b.startMs,
+    bufferForPlaybackMs: headStart ? HEAD_START_MS : b.startMs,
     bufferForPlaybackAfterRebufferMs: b.afterStallMs,
     minBufferMemoryReservePercent: 0.2,
   };
@@ -29,13 +29,13 @@ function fileBufferConfig(level: BufferLevel): BufferConfig {
 const BANDWIDTH_SETTLE_MS = 5_000;
 
 /** Android / Fire TV playback through Media3 (ExoPlayer): HLS, MPEG-TS, MP4, MKV. */
-export function Video({ url, live = true, muted, paused, style, onPlaying, onBuffering, onError, onProgress, onEnd, startAt, seek, onDuration, onBandwidth, buffer, averageBps }: VideoProps) {
+export function Video({ url, live = true, muted, paused, style, onPlaying, onBuffering, onError, onProgress, onEnd, startAt, seek, onDuration, onBandwidth, buffer, headStart, averageBps }: VideoProps) {
   const ref = useRef<VideoRef>(null);
   const { playbackStats, movieBuffer } = usePrefs();
   // For the stats: whether Auto chose this stream's level or Settings fixed it (as when the stream started).
   const [bufferMode] = useState(() => (movieBuffer === 'auto' ? 'auto' : 'fixed'));
   // Read once per stream: a new buffer would restart the player mid-video.
-  const [bufferConfig] = useState(() => (live ? undefined : fileBufferConfig(buffer ?? 'small')));
+  const [bufferConfig] = useState(() => (live ? undefined : fileBufferConfig(buffer ?? 'small', headStart ?? false)));
   const [stats, setStats] = useState<PlaybackStats>(EMPTY_STATS);
   const started = useRef(false);
   const [mountedAt] = useState(() => Date.now());
