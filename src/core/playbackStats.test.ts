@@ -22,4 +22,9 @@ describe('playback stats', () => {
     ]);
     expect(statsLines(EMPTY_STATS)[0]).toBe('–');
   });
+
+  it('shows no buffer for live streams (no length, so the reported value is nonsense)', () => {
+    expect(statsLines({ ...EMPTY_STATS, bufferedS: 9e14 })[2]).toBe('Buffer – · Stalls 0');
+    expect(statsLines({ ...EMPTY_STATS, bufferedS: -3 })[2]).toBe('Buffer – · Stalls 0');
+  });
 });

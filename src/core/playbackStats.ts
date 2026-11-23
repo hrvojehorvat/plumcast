@@ -8,7 +8,10 @@ export interface PlaybackStats {
   streamBps: number;
   /** Measured download speed in bit/s (Media3's estimate); 0 until the first sample. */
   networkBps: number;
-  /** Seconds downloaded ahead of the playback position. */
+  /**
+   * Seconds downloaded ahead of the playback position. Rough: react-native-video derives it from the
+   * buffered percentage (1 % steps), and for live streams (no length) it is meaningless.
+   */
   bufferedS: number;
   /** Times playback stopped to wait for data since the first frame. */
   stalls: number;
@@ -37,6 +40,11 @@ export function statsLines(s: PlaybackStats): string[] {
   return [
     picture || '–',
     `Net ${mbps(s.networkBps)} · Stream ${mbps(s.streamBps)}`,
-    `Buffer ${Math.max(0, s.bufferedS).toFixed(1)} s · Stalls ${s.stalls}`,
+    `Buffer ${bufferText(s.bufferedS)} · Stalls ${s.stalls}`,
   ];
+}
+
+/** Live streams report nonsense (no length to take a percentage of): anything outside 0 s – 1 day is "–". */
+function bufferText(seconds: number): string {
+  return Number.isFinite(seconds) && seconds >= 0 && seconds < 86_400 ? `${seconds.toFixed(1)} s` : '–';
 }
