@@ -23,9 +23,6 @@ describe('playback stats', () => {
     expect(statsLines(EMPTY_STATS)[0]).toBe('–');
   });
 
-  it('names the buffer level of a file', () => {
-    expect(statsLines({ ...EMPTY_STATS, bufferedS: 80 }, 'large')[2]).toBe('Buffer 80.0 s (large) · Stalls 0');
-  });
 
   it('shows no buffer for live streams (no length, so the reported value is nonsense)', () => {
     expect(statsLines({ ...EMPTY_STATS, bufferedS: 9e14 })[2]).toBe('Buffer – · Stalls 0');

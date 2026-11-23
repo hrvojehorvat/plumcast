@@ -98,7 +98,7 @@ export function Video({ url, live = true, muted, paused, style, onPlaying, onBuf
         }}
         onError={(e) => onError?.(e.error.errorString ?? e.error.localizedDescription ?? 'Playback error')}
       />
-      {playbackStats ? <Stats stats={stats} level={live ? null : (buffer ?? 'small')} /> : null}
+      {playbackStats ? <Stats stats={stats} /> : null}
     </View>
   );
 }
