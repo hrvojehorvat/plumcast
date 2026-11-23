@@ -78,7 +78,8 @@
         }
       ],
       "./plugins/withMicrophoneOptional",
-      "./plugins/withTvRemote"
+      "./plugins/withTvRemote",
+      "./plugins/withLargeHeap"
     ],
     "scheme": "plumcast",
     "backgroundColor": "#0c0a12"
