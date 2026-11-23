@@ -34,13 +34,13 @@ export function mbps(bps: number): string {
   return bps > 0 ? `${(bps / 1_000_000).toFixed(1)} Mb/s` : '–';
 }
 
-/** The stats corner's lines: picture, download vs stream, buffer and stalls. */
-export function statsLines(s: PlaybackStats): string[] {
+/** The stats corner's lines: picture, download vs stream, buffer (and its level, for files) and stalls. */
+export function statsLines(s: PlaybackStats, level: string | null = null): string[] {
   const picture = [s.width && s.height ? `${s.width}×${s.height}` : '', codecName(s.codec)].filter(Boolean).join(' · ');
   return [
     picture || '–',
     `Net ${mbps(s.networkBps)} · Stream ${mbps(s.streamBps)}`,
-    `Buffer ${bufferText(s.bufferedS)} · Stalls ${s.stalls}`,
+    `Buffer ${bufferText(s.bufferedS)}${level ? ` (${level})` : ''} · Stalls ${s.stalls}`,
   ];
 }
 
