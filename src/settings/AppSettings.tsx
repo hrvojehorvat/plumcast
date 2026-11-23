@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { BUFFER_LEVELS, type BufferLevel } from '../core/buffer';
 import type { Lang } from '../core/i18n';
 import type { StreamFormat } from '../core/streams';
 import { clearGuideCache } from '../data/guide';
@@ -38,7 +39,7 @@ export function LanguageSettings() {
 /** Settings → Playback: how Xtream live channels are requested. */
 export function PlaybackSettings() {
   const { t } = useI18n();
-  const { streamFormat, playbackStats } = usePrefs();
+  const { streamFormat, playbackStats, movieBuffer } = usePrefs();
   return (
     <View style={styles.section}>
       <Label>{t('settings.playback')}</Label>
@@ -52,6 +53,15 @@ export function PlaybackSettings() {
           ]}
           value={streamFormat}
           onChange={(v) => void setPrefs({ streamFormat: v })}
+        />
+      </View>
+      <View style={styles.item}>
+        <Text weight="semibold" size={16}>{t('settings.buffer')}</Text>
+        <Text size={13} color={colors.textMuted} style={styles.hint}>{t('settings.bufferHint')}</Text>
+        <Segmented<BufferLevel>
+          options={BUFFER_LEVELS.map((level) => ({ value: level, label: t(`settings.buffer.${level}`) }))}
+          value={movieBuffer}
+          onChange={(v) => void setPrefs({ movieBuffer: v })}
         />
       </View>
       <View style={styles.item}>
