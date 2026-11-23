@@ -35,12 +35,12 @@ export function mbps(bps: number): string {
 }
 
 /** The stats corner's lines: picture, download vs stream, buffer and stalls. */
-export function statsLines(s: PlaybackStats): string[] {
+export function statsLines(s: PlaybackStats, level: string | null = null): string[] {
   const picture = [s.width && s.height ? `${s.width}×${s.height}` : '', codecName(s.codec)].filter(Boolean).join(' · ');
   return [
     picture || '–',
     `Net ${mbps(s.networkBps)} · Stream ${mbps(s.streamBps)}`,
-    `Buffer ${bufferText(s.bufferedS)} · Stalls ${s.stalls}`,
+    `Buffer ${bufferText(s.bufferedS)}${level ? ` (${level})` : ''} · Stalls ${s.stalls}`,
   ];
 }
 

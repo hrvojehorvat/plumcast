@@ -1,3 +1,4 @@
+import type { BufferLevel } from '../core/buffer';
 import type { ViewStyle } from 'react-native';
 
 export interface VideoProps {
@@ -25,4 +26,6 @@ export interface VideoProps {
   onDuration?: (seconds: number) => void;
   /** Measured download speed (bit/s), now and then while the stream loads (Android). Not in the first seconds. */
   onBandwidth?: (bps: number) => void;
+  /** Files: how far to load ahead (src/core/buffer.ts); fixed for the stream. Default Small. */
+  buffer?: BufferLevel;
 }

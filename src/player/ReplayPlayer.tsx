@@ -16,6 +16,7 @@ import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighl
 import { clampSeek, seekStep } from './seek';
 import { livePlayer, type LiveSession, type Replay } from './store';
 import { usePlayerKeys } from './usePlayerKeys';
+import { useBufferLevel } from './useBufferLevel';
 import { Video } from './Video';
 
 const INFO_MS = 6000;
@@ -52,6 +53,8 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
   const playlist = list.find((p) => p.id === session.playlistId) ?? null;
   const channel = session.current;
   const { programme, from } = replay;
+  // Replays don't say their bitrate: Auto starts low (decided once per programme; a jump keeps it).
+  const buffer = useBufferLevel(`${channel.id}|${programme.start}`, session.playlistId, null);
   const { lock, unlock } = useLockSpatialNavigation();
 
   // Which copy of the channel has the recording is checked before playing; the one that worked
@@ -245,12 +248,13 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
 
   return (
     <View style={styles.root}>
-      {url && !failed && !status.ended ? (
+      {url && buffer && !failed && !status.ended ? (
         <Video
           key={`${url}#${status.attempt}`}
           url={url}
           live={false}
           onBandwidth={(bps) => recordSpeed(session.playlistId, bps)}
+          buffer={buffer}
           paused={paused}
           style={StyleSheet.absoluteFill}
           onPlaying={() => update({ playing: true, buffering: false, retries: 0 })}

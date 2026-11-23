@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { BUFFER_LEVELS, DEFAULT_BUFFER_LEVEL, fileBuffer, isBufferLevel } from './buffer';
+import { autoLevel, BUFFER_LEVELS, DEFAULT_BUFFER_CHOICE, fileBuffer, isBufferChoice, maxLevelForRam, resolveLevel } from './buffer';
+
+const GB = 1024 ** 3;
+const MB = 1_000_000;
 
 describe('movie buffer levels', () => {
-  it('defaults to Media3’s own buffer (the behaviour before the setting)', () => {
-    expect(DEFAULT_BUFFER_LEVEL).toBe('small');
+  it('defaults to Auto; Small is Media3’s own buffer (the behaviour before the setting)', () => {
+    expect(DEFAULT_BUFFER_CHOICE).toBe('auto');
     expect(fileBuffer('small')).toEqual({ aheadMs: 50_000, startMs: 2_500, afterStallMs: 5_000 });
   });
 
@@ -14,13 +17,44 @@ describe('movie buffer levels', () => {
       expect(levels[i].afterStallMs).toBeGreaterThan(levels[i - 1].afterStallMs);
       expect(levels[i].startMs).toBe(2_500);
     }
-    // Never wait for more than can be loaded ahead.
     for (const l of levels) expect(l.afterStallMs).toBeLessThan(l.aheadMs);
   });
 
-  it('accepts only known levels from storage', () => {
-    expect(isBufferLevel('large')).toBe(true);
-    expect(isBufferLevel('huge')).toBe(false);
-    expect(isBufferLevel(undefined)).toBe(false);
+  it('accepts only known choices from storage', () => {
+    expect(isBufferChoice('auto')).toBe(true);
+    expect(isBufferChoice('large')).toBe(true);
+    expect(isBufferChoice('huge')).toBe(false);
+    expect(isBufferChoice(undefined)).toBe(false);
+  });
+});
+
+describe('Auto buffer', () => {
+  it('picks the lowest level that is probably enough', () => {
+    // HD film (5 Mb/s) on an 8.5 Mb/s connection: clearly faster.
+    expect(autoLevel(8.5 * MB, 5 * MB, 4 * GB)).toBe('small');
+    expect(autoLevel(8.5 * MB, 6.5 * MB, 4 * GB)).toBe('medium');
+    expect(autoLevel(8.5 * MB, 9 * MB, 4 * GB)).toBe('large');
+    // The 4K film (12.2 Mb/s average) on 8.5 Mb/s.
+    expect(autoLevel(8.5 * MB, 12.2 * MB, 4 * GB)).toBe('max');
+  });
+
+  it('starts low when it can’t compare', () => {
+    expect(autoLevel(null, 12 * MB, 4 * GB)).toBe('small');
+    expect(autoLevel(8 * MB, null, 4 * GB)).toBe('small');
+  });
+
+  it('never goes above what the RAM allows', () => {
+    expect(maxLevelForRam(1 * GB)).toBe('medium');
+    expect(maxLevelForRam(2 * GB)).toBe('large');
+    expect(maxLevelForRam(4 * GB)).toBe('max');
+    expect(maxLevelForRam(null)).toBe('large');
+    expect(autoLevel(8.5 * MB, 12.2 * MB, 1 * GB)).toBe('medium');
+    expect(autoLevel(8.5 * MB, 12.2 * MB, null)).toBe('large');
+  });
+
+  it('uses a fixed level from Settings as it is', () => {
+    expect(resolveLevel('small', 1 * MB, 20 * MB, 4 * GB)).toBe('small');
+    expect(resolveLevel('max', null, null, 1 * GB)).toBe('max');
+    expect(resolveLevel('auto', 8.5 * MB, 5 * MB, 4 * GB)).toBe('small');
   });
 });

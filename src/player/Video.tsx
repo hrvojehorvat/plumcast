@@ -8,10 +8,11 @@ import { Stats } from './Stats';
 import type { VideoProps } from './types';
 
 /**
- * Files (movies, episodes, replays) load ahead as far as Settings → Playback → Movie buffer says
- * (src/core/buffer.ts), and only as far as memory allows: the DependingOnMemory strategy stops early when
- * the heap gets low (20 % kept free); plugins/withLargeHeap.js asks for a bigger one. min = max, so the
- * time decides, not Media3's byte target. Live streams keep react-native-video's defaults (live edge).
+ * Files (movies, episodes, replays) load ahead as far as their buffer level says (src/core/buffer.ts; the
+ * player decides it, src/player/useBufferLevel.ts), and only as far as memory allows: the DependingOnMemory
+ * strategy stops early when the heap gets low (20 % kept free); plugins/withLargeHeap.js asks for a bigger
+ * one. min = max, so the time decides, not Media3's byte target. Live streams keep react-native-video's
+ * defaults (live edge).
  */
 function fileBufferConfig(level: BufferLevel): BufferConfig {
   const b = fileBuffer(level);
@@ -28,11 +29,11 @@ function fileBufferConfig(level: BufferLevel): BufferConfig {
 const BANDWIDTH_SETTLE_MS = 5_000;
 
 /** Android / Fire TV playback through Media3 (ExoPlayer): HLS, MPEG-TS, MP4, MKV. */
-export function Video({ url, live = true, muted, paused, style, onPlaying, onBuffering, onError, onProgress, onEnd, startAt, seek, onDuration, onBandwidth }: VideoProps) {
+export function Video({ url, live = true, muted, paused, style, onPlaying, onBuffering, onError, onProgress, onEnd, startAt, seek, onDuration, onBandwidth, buffer }: VideoProps) {
   const ref = useRef<VideoRef>(null);
-  const { playbackStats, movieBuffer } = usePrefs();
-  // Read once per stream: a new buffer would restart the player mid-video. A change applies to the next one.
-  const [bufferConfig] = useState(() => (live ? undefined : fileBufferConfig(movieBuffer)));
+  const { playbackStats } = usePrefs();
+  // Read once per stream: a new buffer would restart the player mid-video.
+  const [bufferConfig] = useState(() => (live ? undefined : fileBufferConfig(buffer ?? 'small')));
   const [stats, setStats] = useState<PlaybackStats>(EMPTY_STATS);
   const started = useRef(false);
   const [mountedAt] = useState(() => Date.now());
@@ -97,7 +98,7 @@ export function Video({ url, live = true, muted, paused, style, onPlaying, onBuf
         }}
         onError={(e) => onError?.(e.error.errorString ?? e.error.localizedDescription ?? 'Playback error')}
       />
-      {playbackStats ? <Stats stats={stats} /> : null}
+      {playbackStats ? <Stats stats={stats} level={live ? null : (buffer ?? 'small')} /> : null}
     </View>
   );
 }

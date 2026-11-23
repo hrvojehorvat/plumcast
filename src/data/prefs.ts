@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { DEFAULT_BUFFER_LEVEL, isBufferLevel, type BufferLevel } from '../core/buffer';
+import { DEFAULT_BUFFER_CHOICE, isBufferChoice, type BufferChoice } from '../core/buffer';
 import { LANGS, type Lang } from '../core/i18n';
 import type { StreamFormat } from '../core/streams';
 import { getSetting, setSetting } from './db';
@@ -16,12 +16,12 @@ export interface Prefs {
   streamFormat: StreamFormat;
   /** Shows resolution, download speed, buffer and stalls in a corner of the player (Android). */
   playbackStats: boolean;
-  /** How far movies, episodes and replays load ahead (src/core/buffer.ts). */
-  movieBuffer: BufferLevel;
+  /** How far movies, episodes and replays load ahead: Auto or a fixed level (src/core/buffer.ts). */
+  movieBuffer: BufferChoice;
 }
 
 export const EPG_OFFSET_LIMIT = 12;
-const DEFAULTS: Prefs = { epgOffsetHours: 0, clock24: true, lang: null, streamFormat: 'ts', playbackStats: false, movieBuffer: DEFAULT_BUFFER_LEVEL };
+const DEFAULTS: Prefs = { epgOffsetHours: 0, clock24: true, lang: null, streamFormat: 'ts', playbackStats: false, movieBuffer: DEFAULT_BUFFER_CHOICE };
 const KEY = 'prefs';
 
 let prefs: Prefs = DEFAULTS;
@@ -68,6 +68,6 @@ function sanitize(p: Prefs): Prefs {
     lang: p.lang && LANGS.includes(p.lang) ? p.lang : null,
     streamFormat: p.streamFormat === 'm3u8' ? 'm3u8' : 'ts',
     playbackStats: p.playbackStats === true,
-    movieBuffer: isBufferLevel(p.movieBuffer) ? p.movieBuffer : DEFAULT_BUFFER_LEVEL,
+    movieBuffer: isBufferChoice(p.movieBuffer) ? p.movieBuffer : DEFAULT_BUFFER_CHOICE,
   };
 }

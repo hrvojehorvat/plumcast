@@ -17,6 +17,7 @@ import type { PlayerKey } from './keys';
 import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, type Action } from './parts';
 import { moviePlayer, type VodItem, type VodSession } from './store';
 import { usePlayerKeys } from './usePlayerKeys';
+import { useBufferLevel } from './useBufferLevel';
 import { Video } from './Video';
 
 const INFO_MS = 5000;
@@ -65,6 +66,9 @@ export function VodPlayer({ session }: { session: VodSession }) {
   const movie = item.kind === 'movie' ? item.movie : null;
   const next = item.kind === 'episode' ? nextEpisode(item.seasons, item.episode.id) : null;
   const info = useMovieInfo(playlist, movie?.id ?? null);
+  // How far to load ahead, decided once per video before it starts (Auto uses the provider's bitrate).
+  const bitrateBps = item.kind === 'movie' ? (info === undefined ? undefined : (info?.bitrateBps ?? null)) : item.episode.bitrateBps;
+  const buffer = useBufferLevel(`${item.kind}|${id}`, session.playlistId, bitrateBps);
   const { lock, unlock } = useLockSpatialNavigation();
 
   const url = useQuery(playlist ? `${playlist.id}|${item.kind}|${id}` : null, () => itemUrl(playlist!, item));
@@ -267,7 +271,7 @@ export function VodPlayer({ session }: { session: VodSession }) {
 
   return (
     <View style={styles.root}>
-      {url && !broken && !ended ? (
+      {url && buffer && !broken && !ended ? (
         <Video
           key={`${url}#${attempt.n}`}
           url={url}
@@ -284,6 +288,7 @@ export function VodPlayer({ session }: { session: VodSession }) {
           onBuffering={setBuffering}
           onDuration={(s) => setDurationMs(s * 1000)}
           onBandwidth={(bps) => recordSpeed(session.playlistId, bps)}
+          buffer={buffer}
           onProgress={(s) => {
             // The first reports can still be 0 before the start position is applied.
             if (s === 0 && attempt.fromMs > 0) return;

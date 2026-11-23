@@ -1,11 +1,12 @@
 import Constants from 'expo-constants';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { BUFFER_LEVELS, type BufferLevel } from '../core/buffer';
+import { BUFFER_CHOICES, type BufferChoice } from '../core/buffer';
 import type { Lang } from '../core/i18n';
 import type { StreamFormat } from '../core/streams';
 import { clearGuideCache } from '../data/guide';
 import { setPrefs, usePrefs } from '../data/prefs';
+import { lastBufferLevel } from '../player/useBufferLevel';
 import { Button } from '../ui/Button';
 import { useI18n } from '../ui/i18n';
 import { Row } from '../ui/Screen';
@@ -58,11 +59,14 @@ export function PlaybackSettings() {
       <View style={styles.item}>
         <Text weight="semibold" size={16}>{t('settings.buffer')}</Text>
         <Text size={13} color={colors.textMuted} style={styles.hint}>{t('settings.bufferHint')}</Text>
-        <Segmented<BufferLevel>
-          options={BUFFER_LEVELS.map((level) => ({ value: level, label: t(`settings.buffer.${level}`) }))}
+        <Segmented<BufferChoice>
+          options={BUFFER_CHOICES.map((choice) => ({ value: choice, label: t(`settings.buffer.${choice}`) }))}
           value={movieBuffer}
           onChange={(v) => void setPrefs({ movieBuffer: v })}
         />
+        {movieBuffer === 'auto' && lastBufferLevel() ? (
+          <Text size={13} color={colors.textMuted}>{t('settings.bufferLast', { level: t(`settings.buffer.${lastBufferLevel()!}`) })}</Text>
+        ) : null}
       </View>
       <View style={styles.item}>
         <Text weight="semibold" size={16}>{t('settings.stats')}</Text>
