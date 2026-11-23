@@ -263,18 +263,19 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
           key={`${url}#${status.attempt}`}
           url={url}
           live={false}
-          onBandwidth={(bps) => {
-            recordSpeed(session.playlistId, bps);
-            watch.speed(bps);
-          }}
+          onBandwidth={(bps) => recordSpeed(session.playlistId, bps)}
           buffer={buffer}
           paused={paused}
           style={StyleSheet.absoluteFill}
-          onPlaying={() => update({ playing: true, buffering: false, retries: 0 })}
+          onPlaying={() => {
+            // The picture (re)started: its first seconds don't count as stalls (src/core/stallWatch.ts).
+            if (!status.playing) watch.started();
+            update({ playing: true, buffering: false, retries: 0 });
+          }}
           onBuffering={(buffering) => {
             update({ buffering });
             // Stalled while playing: on Auto, maybe restart here with more buffer (the picture is frozen anyway).
-            if (buffering && status.playing && watch.stall(null) && stepUp()) {
+            if (buffering && status.playing && watch.stall() && stepUp()) {
               watch.reset();
               jump(position);
             }

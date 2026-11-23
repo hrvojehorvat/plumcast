@@ -171,7 +171,7 @@ export function VodPlayer({ session }: { session: VodSession }) {
     const at = clampTarget(to);
     if (ended || broken) return restartAt(at);
     setPositionMs(at);
-    watch.jumped();
+    watch.started();
     setSeekReq({ seconds: at / 1000 });
     setPaused(false);
   };
@@ -290,6 +290,8 @@ export function VodPlayer({ session }: { session: VodSession }) {
           seek={seekReq}
           style={StyleSheet.absoluteFill}
           onPlaying={() => {
+            // The picture (re)started: its first seconds don't count as stalls (src/core/stallWatch.ts).
+            if (!latest.current.playing) watch.started();
             setPlaying(true);
             setBuffering(false);
             setAttempt((a) => (a.retries ? { ...a, retries: 0 } : a));
@@ -297,16 +299,13 @@ export function VodPlayer({ session }: { session: VodSession }) {
           onBuffering={(b) => {
             setBuffering(b);
             // Stalled while playing: on Auto, maybe restart here with more buffer (the picture is frozen anyway).
-            if (b && latest.current.playing && watch.stall(bitrateBps ?? null) && stepUp()) {
+            if (b && latest.current.playing && watch.stall() && stepUp()) {
               watch.reset();
               restartAt(latest.current.positionMs);
             }
           }}
           onDuration={(s) => setDurationMs(s * 1000)}
-          onBandwidth={(bps) => {
-            recordSpeed(session.playlistId, bps);
-            watch.speed(bps);
-          }}
+          onBandwidth={(bps) => recordSpeed(session.playlistId, bps)}
           buffer={buffer}
           onProgress={(s) => {
             // The first reports can still be 0 before the start position is applied.

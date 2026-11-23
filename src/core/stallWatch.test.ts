@@ -1,57 +1,55 @@
 import { describe, expect, it } from 'vitest';
 import { createStallWatch } from './stallWatch';
 
-const MB = 1_000_000;
-
 describe('Auto buffer during a video', () => {
-  it('moves up at the first stall when the connection is measurably too slow', () => {
-    const watch = createStallWatch(() => 0);
-    watch.speed(8.5 * MB);
-    expect(watch.stall(12.2 * MB)).toBe(true);
-  });
-
-  it('waits for a second stall within 5 minutes when the connection should be fast enough', () => {
+  it('moves up at the second stall within 5 minutes', () => {
     let t = 0;
     const watch = createStallWatch(() => t);
-    watch.speed(8.5 * MB);
-    expect(watch.stall(5 * MB)).toBe(false);
+    watch.started();
+    t += 30_000;
+    expect(watch.stall()).toBe(false);
     t += 4 * 60_000;
-    expect(watch.stall(5 * MB)).toBe(true);
+    expect(watch.stall()).toBe(true);
   });
 
   it('forgets a stall after 5 minutes', () => {
     let t = 0;
     const watch = createStallWatch(() => t);
-    expect(watch.stall(null)).toBe(false);
+    expect(watch.stall()).toBe(false);
     t += 6 * 60_000;
-    expect(watch.stall(null)).toBe(false);
+    expect(watch.stall()).toBe(false);
   });
 
-  it('counts stalls without a bitrate or a measured speed', () => {
+  it('ignores stalls in the first 10 s after the picture (re)starts', () => {
     let t = 0;
     const watch = createStallWatch(() => t);
-    expect(watch.stall(12 * MB)).toBe(false);
-    t += 30_000;
-    expect(watch.stall(12 * MB)).toBe(true);
-  });
-
-  it('ignores loading right after a jump', () => {
-    let t = 0;
-    const watch = createStallWatch(() => t);
-    watch.speed(5 * MB);
-    watch.jumped();
+    watch.started();
+    t += 8_000;
+    expect(watch.stall()).toBe(false);
     t += 1_000;
-    expect(watch.stall(12 * MB)).toBe(false);
-    t += 5_000;
-    expect(watch.stall(12 * MB)).toBe(true);
+    expect(watch.stall()).toBe(false);
+    t += 20_000;
+    expect(watch.stall()).toBe(false);
+    t += 15_000;
+    expect(watch.stall()).toBe(true);
   });
 
-  it('starts fresh after moving up', () => {
+  it('gives a new level a fresh start: two more stalls, none right after the restart', () => {
     let t = 0;
     const watch = createStallWatch(() => t);
-    expect(watch.stall(null)).toBe(false);
+    watch.started();
+    t += 20_000;
+    watch.stall();
+    t += 20_000;
+    expect(watch.stall()).toBe(true);
+    // Moved up: the stream restarts here.
     watch.reset();
-    t += 10_000;
-    expect(watch.stall(null)).toBe(false);
+    watch.started();
+    t += 8_000;
+    expect(watch.stall()).toBe(false);
+    t += 30_000;
+    expect(watch.stall()).toBe(false);
+    t += 30_000;
+    expect(watch.stall()).toBe(true);
   });
 });
