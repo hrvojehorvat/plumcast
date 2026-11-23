@@ -19,3 +19,29 @@ export function bitrateFromInfo(kbps: number | null): number | null {
   if (kbps === null || !Number.isFinite(kbps) || kbps < 100 || kbps > 200_000) return null;
   return Math.round(kbps * 1000);
 }
+
+/**
+ * A video's average bitrate from its file size and length, for videos the provider lists without one
+ * (Auto buffer's fallback). Null when either is missing or the result is nonsense.
+ */
+export function averageBitrate(sizeBytes: number | null, durationMs: number | null): number | null {
+  if (!sizeBytes || !durationMs || sizeBytes <= 0 || durationMs < 60_000) return null;
+  const bps = (sizeBytes * 8) / (durationMs / 1000);
+  return bps >= 100_000 && bps <= 200_000_000 ? Math.round(bps) : null;
+}
+
+/**
+ * The whole file's size from the answer to a request for its first byte: "bytes 0-0/7680000000" (206),
+ * or Content-Length when the server ignores the range (200). Null otherwise.
+ */
+export function sizeFromHeaders(status: number, contentRange: string | null, contentLength: string | null): number | null {
+  if (status === 206) {
+    const total = Number(/\/\s*(\d+)\s*$/.exec(contentRange ?? '')?.[1]);
+    return Number.isFinite(total) && total > 0 ? total : null;
+  }
+  if (status === 200) {
+    const length = Number(contentLength);
+    return Number.isFinite(length) && length > 1 ? length : null;
+  }
+  return null;
+}

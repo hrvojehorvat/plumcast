@@ -4,10 +4,10 @@ import { statsLines, type PlaybackStats } from '../core/playbackStats';
 import { Text } from '../ui/Text';
 
 /** Playback stats in the top-left corner (Settings → Playback). Small, and never in the way of the controls. */
-export function Stats({ stats, level }: { stats: PlaybackStats; level: BufferLevel | null }) {
+export function Stats({ stats, level, averageBps }: { stats: PlaybackStats; level: BufferLevel | null; averageBps: number | null }) {
   return (
     <View style={styles.box} pointerEvents="none">
-      {statsLines(stats, level).map((line, i) => (
+      {statsLines(stats, level, averageBps).map((line, i) => (
         <Text key={i} size={11} color="rgba(255,255,255,0.85)" style={styles.line}>{line}</Text>
       ))}
     </View>

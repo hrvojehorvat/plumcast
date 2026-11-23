@@ -24,6 +24,11 @@ describe('playback stats', () => {
   });
 
 
+  it('adds the average Auto went by for files', () => {
+    expect(statsLines({ ...EMPTY_STATS, networkBps: 9_300_000 }, 'medium', 6_400_000)[1]).toBe('Net 9.3 Mb/s · Stream – · Avg 6.4 Mb/s');
+    expect(statsLines({ ...EMPTY_STATS, networkBps: 9_300_000 })[1]).toBe('Net 9.3 Mb/s · Stream –');
+  });
+
   it('names the buffer level of a file after the seconds', () => {
     expect(statsLines({ ...EMPTY_STATS, bufferedS: 80 }, 'large')[2]).toBe('Buffer 80.0 s (large) · Stalls 0');
   });

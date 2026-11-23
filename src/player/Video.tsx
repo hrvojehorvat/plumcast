@@ -29,7 +29,7 @@ function fileBufferConfig(level: BufferLevel): BufferConfig {
 const BANDWIDTH_SETTLE_MS = 5_000;
 
 /** Android / Fire TV playback through Media3 (ExoPlayer): HLS, MPEG-TS, MP4, MKV. */
-export function Video({ url, live = true, muted, paused, style, onPlaying, onBuffering, onError, onProgress, onEnd, startAt, seek, onDuration, onBandwidth, buffer }: VideoProps) {
+export function Video({ url, live = true, muted, paused, style, onPlaying, onBuffering, onError, onProgress, onEnd, startAt, seek, onDuration, onBandwidth, buffer, averageBps }: VideoProps) {
   const ref = useRef<VideoRef>(null);
   const { playbackStats } = usePrefs();
   // Read once per stream: a new buffer would restart the player mid-video.
@@ -98,7 +98,7 @@ export function Video({ url, live = true, muted, paused, style, onPlaying, onBuf
         }}
         onError={(e) => onError?.(e.error.errorString ?? e.error.localizedDescription ?? 'Playback error')}
       />
-      {playbackStats ? <Stats stats={stats} level={live ? null : (buffer ?? 'small')} /> : null}
+      {playbackStats ? <Stats stats={stats} level={live ? null : (buffer ?? 'small')} averageBps={live ? null : (averageBps ?? null)} /> : null}
     </View>
   );
 }

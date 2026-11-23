@@ -7,6 +7,7 @@ import { saveProgress } from '../data/movies';
 import type { Playlist } from '../data/playlists';
 import { getEpisodeProgress, saveEpisodeProgress } from '../data/series';
 import { usePlaylists } from '../data/store';
+import { fileSize } from '../data/fileSize';
 import { recordSpeed } from '../data/netSpeed';
 import { episodeUrl, movieUrl, useMovieInfo } from '../data/vod';
 import { usePrefs } from '../data/prefs';
@@ -18,6 +19,7 @@ import type { PlayerKey } from './keys';
 import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, statsActions, type Action } from './parts';
 import { moviePlayer, type VodItem, type VodSession } from './store';
 import { usePlayerKeys } from './usePlayerKeys';
+import { averageBitrate } from '../core/netSpeed';
 import { createStallWatch } from '../core/stallWatch';
 import { useBufferLevel } from './useBufferLevel';
 import { Video } from './Video';
@@ -69,16 +71,23 @@ export function VodPlayer({ session }: { session: VodSession }) {
   const movie = item.kind === 'movie' ? item.movie : null;
   const next = item.kind === 'episode' ? nextEpisode(item.seasons, item.episode.id) : null;
   const info = useMovieInfo(playlist, movie?.id ?? null);
-  // How far to load ahead, decided once per video before it starts (Auto uses the provider's bitrate).
-  const bitrateBps = item.kind === 'movie' ? (info === undefined ? undefined : (info?.bitrateBps ?? null)) : item.episode.bitrateBps;
+  const { lock, unlock } = useLockSpatialNavigation();
+
+  const url = useQuery(playlist ? `${playlist.id}|${item.kind}|${id}` : null, () => itemUrl(playlist!, item));
+
+  // The video's average bitrate, for Auto buffer: the provider's number, else file size ÷ length (one small
+  // request, remembered), else none. Undefined while still finding out.
+  const listed = item.kind === 'movie' ? (info === undefined ? undefined : (info?.bitrateBps ?? null)) : item.episode.bitrateBps;
+  const lengthMs = item.kind === 'movie' ? (info?.durationMs ?? item.movie.progress?.durationMs ?? null) : item.episode.durationMs;
+  const sizeKey = listed === null && url && lengthMs ? `${session.playlistId}:${item.kind}:${id}` : null;
+  const averaged = useQuery(sizeKey, async () => averageBitrate(await fileSize(sizeKey!, url!), lengthMs));
+  const bitrateBps = listed !== null ? listed : sizeKey ? averaged : url === undefined ? undefined : null;
+  // How far to load ahead, decided once per video before it starts.
   const { level: buffer, stepUp } = useBufferLevel(`${item.kind}|${id}`, session.playlistId, bitrateBps);
   // Auto: a stall can move the buffer up a level (src/core/stallWatch.ts), one watch per video.
   const [stallWatch, setStallWatch] = useState(() => ({ id, watch: createStallWatch() }));
   if (stallWatch.id !== id) setStallWatch({ id, watch: createStallWatch() });
   const watch = stallWatch.watch;
-  const { lock, unlock } = useLockSpatialNavigation();
-
-  const url = useQuery(playlist ? `${playlist.id}|${item.kind}|${id}` : null, () => itemUrl(playlist!, item));
 
   // Position and length in ms. The start of the current attempt is where a retry picks up.
   const [positionMs, setPositionMs] = useState(session.startMs);
@@ -307,6 +316,7 @@ export function VodPlayer({ session }: { session: VodSession }) {
           onDuration={(s) => setDurationMs(s * 1000)}
           onBandwidth={(bps) => recordSpeed(session.playlistId, bps)}
           buffer={buffer}
+          averageBps={bitrateBps ?? null}
           onProgress={(s) => {
             // The first reports can still be 0 before the start position is applied.
             if (s === 0 && attempt.fromMs > 0) return;
