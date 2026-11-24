@@ -231,7 +231,9 @@ export function PreviewPane({
                         if (fromPicture.current) {
                           fromPicture.current = false;
                           if (!isNow && nowRef.current) {
-                            nowRef.current.focus();
+                            // After this row has fully taken the focus, or its frame stays on.
+                            const target = nowRef.current;
+                            setTimeout(() => target.focus(), 0);
                             return;
                           }
                         }
@@ -302,7 +304,8 @@ const styles = StyleSheet.create({
   centerText: { textAlign: 'center' },
   info: { flex: 1, minHeight: 0, gap: 8 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rowsScroll: { flexGrow: 0, flexShrink: 1 },
+  // All the room between the channel name and the description (sized to its content, Android squeezed it to a sliver).
+  rowsScroll: { flex: 1, minHeight: 0 },
   rows: { gap: ROW_GAP },
   row: { paddingHorizontal: 10, paddingVertical: 6, gap: 5, borderRadius: radius.sm, borderWidth: 2, borderColor: 'transparent' },
   rowNow: { backgroundColor: colors.glassStrong },
