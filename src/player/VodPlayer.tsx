@@ -15,8 +15,9 @@ import { useI18n } from '../ui/i18n';
 import { Text } from '../ui/Text';
 import { colors } from '../ui/tokens';
 import { useLatest, useQuery } from '../ui/useQuery';
+import type { ButtonRect } from './barNav';
 import type { PlayerKey } from './keys';
-import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, statsActions, type Action } from './parts';
+import { ActionBar, ErrorCard, moveHighlight, moveVertical, playerStyles as styles, splitHighlight, statsActions, type Action } from './parts';
 import { moviePlayer, type VodItem, type VodSession } from './store';
 import { usePlayerKeys } from './usePlayerKeys';
 import { averageBitrate } from '../core/netSpeed';
@@ -104,6 +105,7 @@ export function VodPlayer({ session }: { session: VodSession }) {
 
   const [target, setTarget] = useState<number | null>(null);
   const presses = useRef(0);
+  const barRects = useRef<(ButtonRect | undefined)[]>([]);
   const seekTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [overlay, setOverlay] = useState(true);
@@ -250,8 +252,7 @@ export function VodPlayer({ session }: { session: VodSession }) {
       case 'up':
       case 'down':
         showOverlay();
-        if (cardCount) setHighlight(k === 'down' ? Math.max(hl.effective, cardCount) : Math.min(hl.effective, 0));
-        else setHighlight((h) => (h === -1 ? 0 : k === 'up' ? -1 : h));
+        setHighlight(moveVertical(highlight, cardCount, barRects.current.slice(0, actions.length), k));
         break;
       case 'select':
         if (inRow) {
@@ -377,6 +378,7 @@ export function VodPlayer({ session }: { session: VodSession }) {
             <ActionBar
               actions={actions}
               highlight={hl.bar}
+              onButtonLayout={(i, rect) => (barRects.current[i] = rect)}
               onRun={(a) => {
                 a.run();
                 showOverlay();

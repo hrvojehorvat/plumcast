@@ -12,8 +12,9 @@ import { Text } from '../ui/Text';
 import { colors } from '../ui/tokens';
 import { useQuery } from '../ui/useQuery';
 import { useTimeFormat } from '../ui/useTimeFormat';
+import type { ButtonRect } from './barNav';
 import type { PlayerKey } from './keys';
-import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, statsActions, type Action } from './parts';
+import { ActionBar, ErrorCard, moveHighlight, moveVertical, playerStyles as styles, splitHighlight, statsActions, type Action } from './parts';
 import { clampSeek, seekStep } from './seek';
 import { livePlayer, type LiveSession, type Replay } from './store';
 import { usePlayerKeys } from './usePlayerKeys';
@@ -93,6 +94,7 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
   const position = from + (status.base === null ? 0 : Math.max(0, status.seconds - status.base) * 1000);
   const [target, setTarget] = useState<number | null>(null);
   const presses = useRef(0);
+  const barRects = useRef<(ButtonRect | undefined)[]>([]);
   const seekTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [overlay, setOverlay] = useState(true);
@@ -212,8 +214,7 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
       case 'up':
       case 'down':
         showOverlay();
-        if (cardCount) setHighlight(k === 'down' ? Math.max(hl.effective, cardCount) : Math.min(hl.effective, 0));
-        else setHighlight((h) => (h === -1 ? 0 : k === 'up' ? -1 : h));
+        setHighlight(moveVertical(highlight, cardCount, barRects.current.slice(0, actions.length), k));
         break;
       case 'select':
         if (inRow) {
@@ -351,6 +352,7 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
             <ActionBar
               actions={actions}
               highlight={hl.bar}
+              onButtonLayout={(i, rect) => (barRects.current[i] = rect)}
               onRun={(a) => {
                 a.run();
                 showOverlay();

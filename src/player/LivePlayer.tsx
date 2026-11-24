@@ -14,6 +14,7 @@ import { useI18n } from '../ui/i18n';
 import { Icon } from '../ui/Icon';
 import { Text } from '../ui/Text';
 import { colors } from '../ui/tokens';
+import { moveAcrossLines, type ButtonRect } from './barNav';
 import { addDigit, type PlayerKey } from './keys';
 import { clampSeek, seekStep } from './seek';
 import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, statsActions, type Action } from './parts';
@@ -73,6 +74,7 @@ function LivePlayer({ session }: { session: LiveSession }) {
   const [timeline, setTimeline] = useState(false);
   const [target, setTarget] = useState<number | null>(null);
   const presses = useRef(0);
+  const barRects = useRef<(ButtonRect | undefined)[]>([]);
   const seekTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Info shows for a few seconds on every channel change.
@@ -260,9 +262,14 @@ function LivePlayer({ session }: { session: LiveSession }) {
           break;
         }
         const onCard = hl.effective < cardCount;
-        if (key === 'down') {
-          if (onCard) setHighlight(cardCount);
-        } else if (!onCard) {
+        if (onCard) {
+          if (key === 'down') setHighlight(cardCount);
+          break;
+        }
+        // The buttons wrap onto two lines on a TV: ▲▼ move between them first.
+        const line = moveAcrossLines(barRects.current.slice(0, actions.length), hl.bar, key);
+        if (line !== null) setHighlight(cardCount + line);
+        else if (key === 'up') {
           if (cardCount) setHighlight(0);
           else if (canSeek) setTimeline(true);
         }
@@ -382,6 +389,7 @@ function LivePlayer({ session }: { session: LiveSession }) {
             <ActionBar
               actions={actions}
               highlight={onTimeline ? -1 : hl.bar}
+              onButtonLayout={(i, rect) => (barRects.current[i] = rect)}
               onRun={(a) => {
                 a.run();
                 showOverlay();

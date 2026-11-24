@@ -3,6 +3,7 @@ import { getPrefs, setPrefs } from '../data/prefs';
 import { Icon, type IconName } from '../ui/Icon';
 import { Text } from '../ui/Text';
 import { colors, radius } from '../ui/tokens';
+import { moveAcrossLines, type ButtonRect } from './barNav';
 
 export type Action = { key: string; icon: IconName; label: string; run: () => void; filled?: boolean };
 
@@ -16,8 +17,21 @@ export function statsActions(on: boolean, t: (key: 'player.showStats' | 'player.
   return [{ key: 'stats', icon: 'stats', filled: false, label: t(on ? 'player.hideStats' : 'player.showStats'), run: () => void setPrefs({ playbackStats: !getPrefs().playbackStats }) }];
 }
 
-/** The row of buttons in the player panel. The remote moves `highlight`; touch and mouse press directly. */
-export function ActionBar({ actions, highlight, onRun }: { actions: Action[]; highlight: number; onRun: (action: Action) => void }) {
+/**
+ * The row of buttons in the player panel. The remote moves `highlight`; touch and mouse press directly.
+ * `onButtonLayout` reports where each button sits, for ▲▼ when the row wraps (see barNav.ts).
+ */
+export function ActionBar({
+  actions,
+  highlight,
+  onRun,
+  onButtonLayout,
+}: {
+  actions: Action[];
+  highlight: number;
+  onRun: (action: Action) => void;
+  onButtonLayout?: (index: number, rect: ButtonRect) => void;
+}) {
   return (
     <View style={playerStyles.actions}>
       {actions.map((a, i) => (
@@ -26,6 +40,7 @@ export function ActionBar({ actions, highlight, onRun }: { actions: Action[]; hi
           accessibilityLabel={a.label}
           focusable={false}
           onPress={() => onRun(a)}
+          onLayout={onButtonLayout ? (e) => onButtonLayout(i, e.nativeEvent.layout) : undefined}
           style={[playerStyles.action, i === highlight && playerStyles.actionFocused]}
         >
           <Icon name={a.icon} size={20} color={i === highlight ? colors.text : colors.textSoft} filled={a.filled} />
@@ -90,6 +105,20 @@ export function ErrorCard({
 export function splitHighlight(highlight: number, cardCount: number): { effective: number; card: number; bar: number } {
   const effective = cardCount > 0 && highlight === -1 ? 0 : highlight;
   return { effective, card: effective < cardCount ? effective : -1, bar: effective >= cardCount ? effective - cardCount : -1 };
+}
+
+/**
+ * ▲▼ in the movie and replay players: card buttons (if any) above the action bar, whose buttons may wrap
+ * onto several lines. Returns the new highlight; -1 = out of the bar (▲ from its top line).
+ */
+export function moveVertical(highlight: number, cardCount: number, rects: readonly (ButtonRect | undefined)[], direction: 'up' | 'down'): number {
+  const { effective } = splitHighlight(highlight, cardCount);
+  if (effective === -1) return cardCount;
+  if (effective < cardCount) return direction === 'down' ? cardCount : effective;
+  const next = moveAcrossLines(rects, effective - cardCount, direction);
+  if (next !== null) return cardCount + next;
+  if (direction === 'down') return effective;
+  return cardCount ? 0 : -1;
 }
 
 /** Moves the remote highlight through the action bar; -1 = none. */
