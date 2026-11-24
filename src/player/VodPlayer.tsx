@@ -235,6 +235,8 @@ export function VodPlayer({ session }: { session: VodSession }) {
   const row = [...card, ...actions];
   const hl = splitHighlight(highlight, cardCount);
   const inRow = cardCount > 0 || (overlay && highlight !== -1);
+  // No button highlighted: the remote is on the progress line (◀▶ seek), shown with a focus frame.
+  const onTimeline = overlay && !inRow;
 
   const onKey = (k: PlayerKey) => {
     switch (k) {
@@ -258,7 +260,8 @@ export function VodPlayer({ session }: { session: VodSession }) {
         if (inRow) {
           row[hl.effective]?.run();
           showOverlay();
-        } else togglePause();
+        } else if (target !== null) jump(target);
+        else togglePause();
         break;
       case 'playPause':
         togglePause();
@@ -368,10 +371,10 @@ export function VodPlayer({ session }: { session: VodSession }) {
         <View style={styles.panel} pointerEvents="box-none">
           <View style={styles.panelInner}>
             <Text weight="bold" size={20} numberOfLines={1}>{session.title}</Text>
-            <View style={styles.timeRow}>
+            <View style={[styles.timeRow, styles.timeline, onTimeline && styles.timelineFocused]}>
               <Text size={14} weight="semibold" color={target !== null ? colors.accentLight : colors.text}>{formatClock(shown)}</Text>
-              <View style={styles.track}>
-                <View style={[styles.fill, { width: `${Math.round(progress * 1000) / 10}%` }]} />
+              <View style={[styles.track, onTimeline && styles.trackFocused]}>
+                <View style={[styles.fill, onTimeline && styles.fillFocused, { width: `${Math.round(progress * 1000) / 10}%` }]} />
               </View>
               <Text size={13} color={colors.textMuted}>{length ? formatClock(length) : '–:––'}</Text>
             </View>

@@ -16,7 +16,7 @@ import { Text } from '../ui/Text';
 import { colors } from '../ui/tokens';
 import { moveAcrossLines, type ButtonRect } from './barNav';
 import { addDigit, type PlayerKey } from './keys';
-import { clampSeek, seekStep } from './seek';
+import { liveSeek, seekStep } from './seek';
 import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, statsActions, type Action } from './parts';
 import { ReplayPlayer } from './ReplayPlayer';
 import { VodPlayer } from './VodPlayer';
@@ -28,7 +28,6 @@ const INFO_MS = 6000;
 const DIGIT_MS = 1500;
 const RETRY_MS = 1500;
 const SEEK_COMMIT_MS = 1100;
-const MINUTE = 60_000;
 
 /** Mounted once at the root; shows the full-screen player while a session is open (live or replay). */
 export function LivePlayerHost() {
@@ -158,15 +157,13 @@ function LivePlayer({ session }: { session: LiveSession }) {
     if (!restartable) return;
     showOverlay();
     clearTimeout(seekTimer.current);
-    const at = Date.now();
-    const wanted = (target ?? at) + direction * seekStep(presses.current++);
+    const next = liveSeek(target, direction, seekStep(presses.current++), restartable, Date.now());
     // Forward up to now again = stay live.
-    if (wanted >= at - MINUTE) {
+    if (next === null) {
       presses.current = 0;
       setTarget(null);
       return;
     }
-    const next = clampSeek(wanted, restartable, at);
     setTarget(next);
     seekTimer.current = setTimeout(() => watchFrom(next), SEEK_COMMIT_MS);
   };
@@ -360,16 +357,16 @@ function LivePlayer({ session }: { session: LiveSession }) {
                   <Text weight="semibold" size={13} color={colors.accentLight}>{t('live.now').toUpperCase()}  </Text>
                   {now.title}
                 </Text>
-                <View style={[styles.timeRow, local.timeRow, onTimeline && local.timeRowFocused]}>
+                <View style={[styles.timeRow, styles.timeline, onTimeline && styles.timelineFocused]}>
                   <Text size={13} weight={target !== null ? 'semibold' : undefined} color={target !== null ? colors.accentLight : colors.textMuted}>
                     {time(target ?? now.start)}
                   </Text>
-                  <View style={[styles.track, onTimeline && local.trackFocused]}>
+                  <View style={[styles.track, onTimeline && styles.trackFocused]}>
                     {target !== null ? <View style={[local.live, { width: pct(info?.progress ?? 0) }]} /> : null}
                     <View
                       style={[
                         styles.fill,
-                        onTimeline && local.fillFocused,
+                        onTimeline && styles.fillFocused,
                         { width: pct(target !== null ? (target - now.start) / (now.end - now.start) : (info?.progress ?? 0)) },
                       ]}
                     />
@@ -406,10 +403,5 @@ function LivePlayer({ session }: { session: LiveSession }) {
 const pct = (fraction: number) => `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%` as const;
 
 const local = StyleSheet.create({
-  // Room for the focus ring without the row moving.
-  timeRow: { marginHorizontal: -8, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12, borderWidth: 2, borderColor: 'transparent' },
-  timeRowFocused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
-  trackFocused: { height: 8, borderRadius: 4 },
-  fillFocused: { height: 8 },
   live: { position: 'absolute', top: 0, bottom: 0, left: 0, backgroundColor: 'rgba(255,255,255,0.18)' },
 });

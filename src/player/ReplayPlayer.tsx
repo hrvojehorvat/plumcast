@@ -197,6 +197,8 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
   const row = [...card, ...actions];
   const hl = splitHighlight(highlight, cardCount);
   const inRow = cardCount > 0 || (overlay && highlight !== -1);
+  // No button highlighted: the remote is on the progress line (◀▶ seek), shown with a focus frame.
+  const onTimeline = overlay && !inRow;
 
   const onKey = (k: PlayerKey) => {
     switch (k) {
@@ -220,7 +222,8 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
         if (inRow) {
           row[hl.effective]?.run();
           showOverlay();
-        } else togglePause();
+        } else if (target !== null) jump(target);
+        else togglePause();
         break;
       // CH+/CH− leave the replay for the next channel, live.
       case 'channelUp':
@@ -340,11 +343,11 @@ export function ReplayPlayer({ session, replay }: { session: LiveSession; replay
               <Text size={13} color={colors.textMuted}>
                 {formatDay(programme.start, lang)} · {time(programme.start)}–{time(programme.end)}
               </Text>
-              <View style={styles.timeRow}>
+              <View style={[styles.timeRow, styles.timeline, onTimeline && styles.timelineFocused]}>
                 <Text size={14} weight="semibold" color={target !== null ? colors.accentLight : colors.text}>{time(shown)}</Text>
-                <View style={styles.track}>
+                <View style={[styles.track, onTimeline && styles.trackFocused]}>
                   {available < 1 ? <View style={[local.available, { width: `${Math.round(available * 100)}%` }]} /> : null}
-                  <View style={[styles.fill, { width: `${Math.round(progress * 100)}%` }]} />
+                  <View style={[styles.fill, onTimeline && styles.fillFocused, { width: `${Math.round(progress * 100)}%` }]} />
                 </View>
                 <Text size={13} color={colors.textMuted}>{time(programme.end)}</Text>
               </View>

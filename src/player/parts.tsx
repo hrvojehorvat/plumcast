@@ -170,6 +170,11 @@ export const playerStyles = StyleSheet.create({
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   track: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.glassStrong, overflow: 'hidden' },
   fill: { height: 4, backgroundColor: colors.accent },
+  // The progress line as a row the remote can be on (◀▶ seek there): room for the focus ring without the row moving.
+  timeline: { marginHorizontal: -8, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12, borderWidth: 2, borderColor: 'transparent' },
+  timelineFocused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
+  trackFocused: { height: 8, borderRadius: 4 },
+  fillFocused: { height: 8 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   action: {
     height: 42,
