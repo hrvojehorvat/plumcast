@@ -81,3 +81,28 @@ export function nowNext(programmes: readonly Programme[], now = Date.now()): Now
   const progress = current ? (now - current.start) / (current.end - current.start) : 0;
   return { now: current, next, progress };
 }
+
+export interface AroundNow {
+  /** Ended programmes, oldest first; `replay` = in the channel's catch-up list. */
+  before: { programme: Programme; replay: boolean }[];
+  current: Programme | null;
+  /** Coming up, soonest first. */
+  after: Programme[];
+}
+
+/**
+ * What was on, is on and comes next on a channel: `count` programmes either side of the current one.
+ * Past ones come from the catch-up list when the channel has one (those can be replayed), else from
+ * the guide (shown, but not replayable).
+ */
+export function aroundNow(guide: readonly Programme[], archive: readonly Programme[], now: number, count = 2): AroundNow {
+  const byStart = (a: Programme, b: Programme) => a.start - b.start;
+  const current = guide.find((p) => p.start <= now && now < p.end) ?? null;
+  const ended = (list: readonly Programme[]) => list.filter((p) => p.end <= now).sort(byStart).slice(-count);
+  const past = archive.length ? ended(archive) : [];
+  const before = past.length
+    ? past.map((programme) => ({ programme, replay: true }))
+    : ended(guide).map((programme) => ({ programme, replay: false }));
+  const after = guide.filter((p) => p.start >= (current?.end ?? now)).sort(byStart).slice(0, count);
+  return { before, current, after };
+}

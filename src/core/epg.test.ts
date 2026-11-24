@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeBase64Utf8, nowNext, parseShortEpg } from './epg';
+import { aroundNow, decodeBase64Utf8, nowNext, parseShortEpg, type Programme } from './epg';
 
 const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
 
@@ -54,5 +54,31 @@ describe('nowNext', () => {
   it('has only a next one in a gap or before the start', () => {
     expect(nowNext(list.slice(2), 150)).toEqual({ now: null, next: list[2], progress: 0 });
     expect(nowNext(list, 500)).toEqual({ now: null, next: null, progress: 0 });
+  });
+});
+
+describe('aroundNow', () => {
+  const show = (start: number, end: number, title = `${start}`): Programme => ({ start, end, title, description: null });
+  const guide = [show(0, 10), show(10, 20), show(20, 30), show(30, 40), show(40, 50), show(50, 60), show(60, 70)];
+
+  it('takes two either side of the current programme from the guide', () => {
+    const r = aroundNow(guide, [], 35);
+    expect(r.current).toEqual(guide[3]);
+    expect(r.before).toEqual([{ programme: guide[1], replay: false }, { programme: guide[2], replay: false }]);
+    expect(r.after).toEqual([guide[4], guide[5]]);
+  });
+
+  it('uses the catch-up list for the past when there is one', () => {
+    const archive = [show(20, 30, 'b'), show(0, 10, 'old'), show(10, 20, 'a')];
+    const r = aroundNow(guide, archive, 35);
+    expect(r.before).toEqual([{ programme: archive[2], replay: true }, { programme: archive[0], replay: true }]);
+  });
+
+  it('copes with no current programme and few programmes', () => {
+    const r = aroundNow([show(50, 60)], [], 35);
+    expect(r.current).toBeNull();
+    expect(r.before).toEqual([]);
+    expect(r.after).toEqual([show(50, 60)]);
+    expect(aroundNow([], [], 35)).toEqual({ before: [], current: null, after: [] });
   });
 });

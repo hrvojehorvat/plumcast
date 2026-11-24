@@ -80,6 +80,7 @@ function emptyText(t: ReturnType<typeof useI18n>['t'], selected: string | null, 
 /**
  * Three columns: categories, channels, preview. Moving only moves the focus (the pane shows what is on);
  * OK opens a category, OK on a channel plays it in the preview, OK on the playing channel goes full screen.
+ * ▶ from a channel goes into the preview: its picture and the programmes around now.
  */
 function WideLive({ playlist }: { playlist: Playlist }) {
   const { t } = useI18n();
@@ -205,7 +206,15 @@ function WideLive({ playlist }: { playlist: Playlist }) {
       </SpatialNavigationView>
 
       {/* Preview */}
-      <PreviewPane playlist={playlist} channel={shown} playing={!session && preview !== null && shown?.id === preview.id} />
+      <PreviewPane
+        playlist={playlist}
+        channel={shown}
+        playing={!session && preview !== null && shown?.id === preview.id}
+        onChoose={choose}
+        onWatchLive={live.open}
+        onReplay={(channel, programme) => livePlayer.openReplay(playlist.id, live.channels ?? [channel], channel, programme)}
+        onBack={toLastChannel}
+      />
     </SpatialNavigationView>
   );
 }
