@@ -15,6 +15,7 @@ import { Icon } from '../ui/Icon';
 import { Text } from '../ui/Text';
 import { colors } from '../ui/tokens';
 import { addDigit, type PlayerKey } from './keys';
+import { clampSeek, seekStep } from './seek';
 import { ActionBar, ErrorCard, moveHighlight, playerStyles as styles, splitHighlight, statsActions, type Action } from './parts';
 import { ReplayPlayer } from './ReplayPlayer';
 import { VodPlayer } from './VodPlayer';
@@ -25,6 +26,8 @@ import { Video } from './Video';
 const INFO_MS = 6000;
 const DIGIT_MS = 1500;
 const RETRY_MS = 1500;
+const SEEK_COMMIT_MS = 1100;
+const MINUTE = 60_000;
 
 /** Mounted once at the root; shows the full-screen player while a session is open (live or replay). */
 export function LivePlayerHost() {
@@ -66,25 +69,35 @@ function LivePlayer({ session }: { session: LiveSession }) {
   const [digits, setDigits] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const digitTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // The progress line is a row of the panel too (above the buttons): ◀/▶ there rewind into the archive.
+  const [timeline, setTimeline] = useState(false);
+  const [target, setTarget] = useState<number | null>(null);
+  const presses = useRef(0);
+  const seekTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Info shows for a few seconds on every channel change.
   const [infoFor, setInfoFor] = useState(channel.id);
   if (infoFor !== channel.id) {
     setInfoFor(channel.id);
     setOverlay(true);
+    setTimeline(false);
+    setTarget(null);
   }
   const showOverlay = () => {
     setOverlay(true);
     setActivity((n) => n + 1);
   };
+  // The panel stays while a rewind target is being picked.
+  const seeking = target !== null;
   useEffect(() => {
-    if (!overlay) return;
+    if (!overlay || seeking) return;
     const id = setTimeout(() => {
       setOverlay(false);
       setHighlight(-1);
+      setTimeline(false);
     }, INFO_MS);
     return () => clearTimeout(id);
-  }, [overlay, activity, channel.id]);
+  }, [overlay, activity, channel.id, seeking]);
 
   // The app's own focus navigation stays still while the player has the remote.
   useEffect(() => {
@@ -98,7 +111,13 @@ function LivePlayer({ session }: { session: LiveSession }) {
     if (playlistId) void addRecent(playlistId, channel.id).catch(() => undefined);
   }, [playlistId, channel.id]);
 
-  useEffect(() => () => clearTimeout(digitTimer.current), []);
+  useEffect(
+    () => () => {
+      clearTimeout(digitTimer.current);
+      clearTimeout(seekTimer.current);
+    },
+    [],
+  );
 
   const onError = () => {
     // One quiet retry: with single-connection accounts the previous stream may still count for a moment.
@@ -122,6 +141,40 @@ function LivePlayer({ session }: { session: LiveSession }) {
   const next = info?.next;
   // What's on now on a channel that records can be watched from its start.
   const restartable = replayDays(channel) > 0 && now ? now : null;
+  const canSeek = restartable !== null && playlist !== null && !failed;
+
+  /** Plays what's on now from `at` (a replay; "Go live" there comes back). */
+  const watchFrom = (at: number) => {
+    clearTimeout(seekTimer.current);
+    presses.current = 0;
+    setTarget(null);
+    if (restartable && playlist) livePlayer.openReplay(playlist.id, session.list, channel, restartable, at);
+  };
+
+  /** ◀/▶ on the progress line: move the target back from live (or forward again), then jump once the keys rest. */
+  const nudge = (direction: 1 | -1) => {
+    if (!restartable) return;
+    showOverlay();
+    clearTimeout(seekTimer.current);
+    const at = Date.now();
+    const wanted = (target ?? at) + direction * seekStep(presses.current++);
+    // Forward up to now again = stay live.
+    if (wanted >= at - MINUTE) {
+      presses.current = 0;
+      setTarget(null);
+      return;
+    }
+    const next = clampSeek(wanted, restartable, at);
+    setTarget(next);
+    seekTimer.current = setTimeout(() => watchFrom(next), SEEK_COMMIT_MS);
+  };
+
+  const cancelSeek = () => {
+    clearTimeout(seekTimer.current);
+    presses.current = 0;
+    setTarget(null);
+  };
+
   const openArchive = () => {
     livePlayer.close();
     router.push(`/catchup/${encodeURIComponent(channel.id)}`);
@@ -150,6 +203,9 @@ function LivePlayer({ session }: { session: LiveSession }) {
   const row = [...card, ...actions];
   const cardCount = failed ? 2 : 0;
   const hl = splitHighlight(highlight, cardCount);
+  const onTimeline = overlay && timeline && canSeek;
+  // Moving inside the panel (▲▼ move there) vs. just watching (▲▼ zap).
+  const inPanel = onTimeline || (overlay && highlight !== -1);
 
   const commitDigits = async (value: string) => {
     setDigits('');
@@ -173,32 +229,66 @@ function LivePlayer({ session }: { session: LiveSession }) {
     }
     switch (key) {
       case 'back':
-        if (!cardCount && overlay && highlight !== -1) {
+        if (target !== null) cancelSeek();
+        else if (!cardCount && inPanel) {
           setOverlay(false);
           setHighlight(-1);
+          setTimeline(false);
         } else livePlayer.close();
         break;
-      // Arrows follow the list on screen (▲ = channel above); CH+/CH− follow the numbers.
-      case 'up':
+      // CH+/CH− always zap and follow the numbers.
       case 'channelDown':
         livePlayer.step(-1);
         break;
-      case 'down':
       case 'channelUp':
         livePlayer.step(1);
         break;
+      case 'up':
+      case 'down': {
+        // Just watching: arrows follow the list on screen (▲ = channel above).
+        if (!inPanel) {
+          livePlayer.step(key === 'up' ? -1 : 1);
+          break;
+        }
+        // In the panel, rows top to bottom: progress line, error card, buttons.
+        showOverlay();
+        if (onTimeline) {
+          if (key === 'down') {
+            setTimeline(false);
+            if (highlight === -1) setHighlight(cardCount);
+          }
+          break;
+        }
+        const onCard = hl.effective < cardCount;
+        if (key === 'down') {
+          if (onCard) setHighlight(cardCount);
+        } else if (!onCard) {
+          if (cardCount) setHighlight(0);
+          else if (canSeek) setTimeline(true);
+        }
+        break;
+      }
       case 'left':
       case 'right':
+        if (onTimeline) {
+          nudge(key === 'right' ? 1 : -1);
+          break;
+        }
         showOverlay();
         setHighlight(moveHighlight(hl.effective, key, row.length));
         break;
       case 'select':
-        if (cardCount || (overlay && highlight !== -1)) {
+        if (onTimeline) {
+          if (target !== null) watchFrom(target);
+          else showOverlay();
+        } else if (cardCount || (overlay && highlight !== -1)) {
           row[hl.effective]?.run();
           showOverlay();
-        } else if (overlay) {
-          setOverlay(false);
-        } else showOverlay();
+        } else {
+          // OK opens the panel on its first button.
+          showOverlay();
+          setHighlight(cardCount);
+        }
         break;
       case 'stop':
         livePlayer.close();
@@ -242,9 +332,9 @@ function LivePlayer({ session }: { session: LiveSession }) {
 
       {failed ? <ErrorCard title={t('player.error')} hint={t('player.errorHint')} actions={card} highlight={hl.card} onRun={(a) => a.run()} /> : null}
 
-      {digits || notice ? (
+      {digits || notice || target !== null ? (
         <View style={styles.bubble} pointerEvents="none">
-          <Text weight="bold" size={digits ? 44 : 18}>{digits || notice}</Text>
+          <Text weight="bold" size={digits ? 44 : target !== null && !notice ? 32 : 18}>{digits || notice || time(target!)}</Text>
         </View>
       ) : null}
 
@@ -263,9 +353,20 @@ function LivePlayer({ session }: { session: LiveSession }) {
                   <Text weight="semibold" size={13} color={colors.accentLight}>{t('live.now').toUpperCase()}  </Text>
                   {now.title}
                 </Text>
-                <View style={styles.timeRow}>
-                  <Text size={13} color={colors.textMuted}>{time(now.start)}</Text>
-                  <View style={styles.track}><View style={[styles.fill, { width: `${Math.round((info?.progress ?? 0) * 100)}%` }]} /></View>
+                <View style={[styles.timeRow, local.timeRow, onTimeline && local.timeRowFocused]}>
+                  <Text size={13} weight={target !== null ? 'semibold' : undefined} color={target !== null ? colors.accentLight : colors.textMuted}>
+                    {time(target ?? now.start)}
+                  </Text>
+                  <View style={[styles.track, onTimeline && local.trackFocused]}>
+                    {target !== null ? <View style={[local.live, { width: pct(info?.progress ?? 0) }]} /> : null}
+                    <View
+                      style={[
+                        styles.fill,
+                        onTimeline && local.fillFocused,
+                        { width: pct(target !== null ? (target - now.start) / (now.end - now.start) : (info?.progress ?? 0)) },
+                      ]}
+                    />
+                  </View>
                   <Text size={13} color={colors.textMuted}>{time(now.end)}</Text>
                 </View>
                 {next ? (
@@ -280,16 +381,27 @@ function LivePlayer({ session }: { session: LiveSession }) {
             )}
             <ActionBar
               actions={actions}
-              highlight={hl.bar}
+              highlight={onTimeline ? -1 : hl.bar}
               onRun={(a) => {
                 a.run();
                 showOverlay();
               }}
             />
-            {Platform.isTV || Platform.OS === 'web' ? <Text size={12} color={colors.textFaint}>{t('player.keysHint')}</Text> : null}
+            {Platform.isTV || Platform.OS === 'web' ? <Text size={12} color={colors.textFaint}>{t(onTimeline ? 'player.timelineHint' : inPanel ? 'player.panelKeysHint' : 'player.keysHint')}</Text> : null}
           </View>
         </View>
       ) : null}
     </View>
   );
 }
+
+const pct = (fraction: number) => `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%` as const;
+
+const local = StyleSheet.create({
+  // Room for the focus ring without the row moving.
+  timeRow: { marginHorizontal: -8, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12, borderWidth: 2, borderColor: 'transparent' },
+  timeRowFocused: { borderColor: colors.focusRing, backgroundColor: colors.accentSoft },
+  trackFocused: { height: 8, borderRadius: 4 },
+  fillFocused: { height: 8 },
+  live: { position: 'absolute', top: 0, bottom: 0, left: 0, backgroundColor: 'rgba(255,255,255,0.18)' },
+});
