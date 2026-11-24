@@ -211,8 +211,9 @@ function WideLive({ playlist }: { playlist: Playlist }) {
         channel={shown}
         playing={!session && preview !== null && shown?.id === preview.id}
         onChoose={choose}
+        onPlayHere={setPreview}
         onWatchLive={live.open}
-        onReplay={(channel, programme) => livePlayer.openReplay(playlist.id, live.channels ?? [channel], channel, programme)}
+        onReplay={(channel, programme, from) => livePlayer.openReplay(playlist.id, live.channels ?? [channel], channel, programme, from)}
         onBack={toLastChannel}
       />
     </SpatialNavigationView>

@@ -2,10 +2,11 @@ import { useRef, useState, type ComponentRef } from 'react';
 import { ActivityIndicator, type ScrollView, StyleSheet, View } from 'react-native';
 import { SpatialNavigationScrollView, SpatialNavigationView, type SpatialNavigationNodeRef } from 'react-tv-space-navigation';
 import { aroundNow, type Programme } from '../core/epg';
-import { useArchive } from '../data/catchup';
+import { findReplay, useArchive } from '../data/catchup';
 import { useNow, useProgrammes } from '../data/epg';
 import type { Channel } from '../data/live';
 import type { Playlist } from '../data/playlists';
+import { clampSeek } from '../player/seek';
 import { Video } from '../player/Video';
 import { Focusable } from '../ui/Focusable';
 import { useI18n } from '../ui/i18n';
@@ -13,6 +14,7 @@ import { Icon } from '../ui/Icon';
 import { setBackStep } from '../ui/lastKey';
 import { Text } from '../ui/Text';
 import { colors, radius } from '../ui/tokens';
+import { useQuery } from '../ui/useQuery';
 import { useTimeFormat } from '../ui/useTimeFormat';
 import { ChannelLogo } from './ChannelRow';
 import { useDebounced, useStreamUrl } from './useLive';
@@ -26,9 +28,10 @@ type Row = { kind: 'before'; programme: Programme; replay: boolean } | { kind: '
 
 /**
  * Right-hand pane: the channel picked with OK plays small (otherwise the focused one is shown, not
- * played), with four programmes before and after the one on now (the list scrolls). ▶ from the channel list comes in here:
- * OK on the picture plays it / goes full screen, OK on what's on now watches live, OK on an earlier
- * programme replays it when the channel's catch-up has it.
+ * played), with four programmes before and after the one on now (the list scrolls). ▶ from the channel
+ * list comes in here. Everything plays small first and full screen on the second OK: the picture and
+ * what's on now play live, an earlier programme plays its replay (when the channel's catch-up has it);
+ * full screen carries on where the small replay is.
  * `playing` is false while the full-screen player is open (one stream at a time).
  */
 export function PreviewPane({
@@ -36,6 +39,7 @@ export function PreviewPane({
   channel,
   playing,
   onChoose,
+  onPlayHere,
   onWatchLive,
   onReplay,
   onBack,
@@ -45,14 +49,32 @@ export function PreviewPane({
   playing: boolean;
   /** OK on the picture: play it here, or full screen when it already plays. */
   onChoose: (channel: Channel) => void;
+  /** Play the channel here (it becomes the one the pane plays). */
+  onPlayHere: (channel: Channel) => void;
   onWatchLive: (channel: Channel) => void;
-  onReplay: (channel: Channel, programme: Programme) => void;
+  /** Full-screen replay from `from` (unix ms). */
+  onReplay: (channel: Channel, programme: Programme, from: number) => void;
   /** Back while in the pane: to the channel list. */
   onBack: () => void;
 }) {
   const { t } = useI18n();
   const formatTime = useTimeFormat();
-  const url = useStreamUrl(playlist, playing ? channel : null);
+  // An earlier programme picked to play here, instead of live (per channel).
+  const [replaying, setReplaying] = useState<{ channel: string; programme: Programme } | null>(null);
+  const replay = replaying && replaying.channel === channel?.id ? replaying.programme : null;
+  const liveUrl = useStreamUrl(playlist, playing && !replay ? channel : null);
+  const found = useQuery(playing && replay && channel ? `${playlist.id}|${channel.id}|${replay.start}|${replay.end}` : null, () =>
+    findReplay(playlist, channel!, replay!.start, replay!.end, null),
+  );
+  const url = replay ? (playing ? found?.url : null) : liveUrl;
+  const noRecording = replay !== null && playing && found !== undefined && found.url === null;
+  // Where the small replay is, so full screen carries on from there.
+  const progress = useRef<{ url: string | null; base: number; seconds: number }>({ url: null, base: 0, seconds: 0 });
+  const replayFrom = (programme: Programme) => {
+    const p = progress.current;
+    const at = p.url === url ? programme.start + Math.max(0, p.seconds - p.base) * 1000 : programme.start;
+    return at - programme.start < 60_000 ? programme.start : clampSeek(at, programme, Date.now());
+  };
   const now = useNow(30_000);
   const guide = useProgrammes(playlist, channel?.id ?? null);
   // The catch-up list is a bigger request: only for a channel the focus rests on.
@@ -66,7 +88,7 @@ export function PreviewPane({
   ];
 
   const [state, setState] = useState<{ url: string | null; status: 'loading' | 'playing' | 'failed' }>({ url: null, status: 'loading' });
-  const status = state.url === url ? state.status : 'loading';
+  const status = noRecording ? 'failed' : state.url === url ? state.status : 'loading';
   // Which programme the focus is on (its description shows below), and a short message; both per channel.
   const [focusedRow, setFocusedRow] = useState<{ channel: string; start: number } | null>(null);
   const [notice, setNotice] = useState<{ channel: string; text: string } | null>(null);
@@ -95,18 +117,35 @@ export function PreviewPane({
 
   const run = (row: Row) => {
     if (!channel) return;
-    if (row.kind === 'now') onWatchLive(channel);
-    else if (row.kind === 'before') {
-      if (row.replay) onReplay(channel, row.programme);
-      else say(t('live.noReplay'));
+    if (row.kind === 'now') {
+      // Live already playing here: full screen. Otherwise (a replay, or nothing yet): live, here.
+      if (playing && !replay) onWatchLive(channel);
+      else {
+        setReplaying(null);
+        onPlayHere(channel);
+      }
+    } else if (row.kind === 'before') {
+      if (!row.replay) say(t('live.noReplay'));
+      else if (playing && replay?.start === row.programme.start) onReplay(channel, row.programme, replayFrom(row.programme));
+      else {
+        setReplaying({ channel: channel.id, programme: row.programme });
+        onPlayHere(channel);
+      }
     } else say(t('live.startsAt', { time: formatTime(row.programme.start) }));
+  };
+
+  const choosePicture = () => {
+    if (!channel) return;
+    if (!replay) onChoose(channel);
+    else if (playing) onReplay(channel, replay, replayFrom(replay));
+    else onPlayHere(channel);
   };
 
   return (
     <SpatialNavigationView direction="vertical" style={styles.pane}>
       <Focusable
         accessibilityLabel={channel?.name ?? t('nav.live')}
-        onSelect={() => channel && onChoose(channel)}
+        onSelect={choosePicture}
         onFocus={() => {
           fromPicture.current = false;
           setBackStep(onBack);
@@ -117,20 +156,37 @@ export function PreviewPane({
           <View style={[styles.video, isFocused && styles.videoFocused]}>
             {url ? (
               <Video
+                key={url}
                 url={url}
+                live={!replay}
                 style={StyleSheet.absoluteFill}
                 onPlaying={() => setState({ url, status: 'playing' })}
                 onError={() => setState({ url, status: 'failed' })}
+                onProgress={
+                  replay
+                    ? (seconds) => {
+                        const p = progress.current;
+                        progress.current = p.url === url ? { ...p, seconds } : { url, base: seconds, seconds };
+                      }
+                    : undefined
+                }
               />
+            ) : null}
+            {replay && playing ? (
+              <View style={styles.replayBadge} pointerEvents="none">
+                <Text weight="semibold" size={10} color="#ffffff" numberOfLines={1}>
+                  {t('player.replay').toUpperCase()} · {formatTime(replay.start)}
+                </Text>
+              </View>
             ) : null}
             {channel && status !== 'playing' ? (
               <View style={styles.videoCover} pointerEvents="none">
                 {status === 'failed' ? (
                   <>
                     <Icon name="alert" size={24} color="#ff8787" />
-                    <Text size={12} color={colors.textMuted} style={styles.centerText}>{t('player.error')}</Text>
+                    <Text size={12} color={colors.textMuted} style={styles.centerText}>{t(noRecording ? 'player.noRecording' : 'player.error')}</Text>
                   </>
-                ) : url ? (
+                ) : url || (replay && playing) ? (
                   <ActivityIndicator color={colors.accentLight} />
                 ) : (
                   <Icon name="play" size={24} color={isFocused ? colors.text : colors.textFaint} />
@@ -163,6 +219,8 @@ export function PreviewPane({
                   const p = row.programme;
                   const isNow = row.kind === 'now';
                   const dim = row.kind === 'before' && !row.replay;
+                  // What the picture above plays right now.
+                  const onAir = playing && (replay ? replay.start === p.start : isNow);
                   return (
                     <Focusable
                       key={`${row.kind}|${p.start}`}
@@ -200,6 +258,8 @@ export function PreviewPane({
                               <View style={styles.liveBadge}>
                                 <Text weight="semibold" size={9} color="#ffffff">{t('live.liveBadge')}</Text>
                               </View>
+                            ) : onAir ? (
+                              <Icon name="play" size={13} filled color={colors.accentLight} />
                             ) : row.kind === 'before' && row.replay ? (
                               <Icon name="archive" size={14} color={isFocused ? colors.text : colors.accentLight} />
                             ) : null}
@@ -237,6 +297,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   video: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: '#000', borderWidth: 2, borderColor: colors.border },
   videoFocused: { borderColor: colors.focusRing },
+  replayBadge: { position: 'absolute', top: 8, left: 8, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: colors.accent },
   videoCover: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16 },
   centerText: { textAlign: 'center' },
   info: { flex: 1, minHeight: 0, gap: 8 },
