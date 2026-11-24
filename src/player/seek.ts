@@ -18,13 +18,3 @@ export function clampSeek(target: number, programme: Pick<Programme, 'start' | '
   const clamped = Math.max(programme.start, Math.min(target, latest));
   return Math.max(programme.start, Math.floor(clamped / MINUTE) * MINUTE);
 }
-
-/**
- * ◀/▶ on live TV's progress line: the new rewind target, or null = back to live. ◀ always moves back
- * (the first press lands exactly a minute behind now); ▶ that reaches the last minute returns to live.
- */
-export function liveSeek(target: number | null, direction: 1 | -1, step: number, programme: Pick<Programme, 'start' | 'end'>, now: number): number | null {
-  const wanted = (target ?? now) + direction * step;
-  if (direction === 1 && wanted >= now - MINUTE) return null;
-  return clampSeek(wanted, programme, now);
-}

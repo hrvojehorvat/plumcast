@@ -138,7 +138,6 @@ export const hr: Messages = {
   'player.noChannel': "Nema kanala s brojem {n}",
   'player.keysHint': "▲▼ kanal · OK izbornik · 0–9 broj · Natrag izlaz",
   'player.panelKeysHint': "▲▼ pomicanje · OK odabir · Natrag sakrij",
-  'player.timelineHint': "◀ natrag · ▶ naprijed · OK gledaj odavde · ▼ gumbi",
   'player.play': "Pokreni",
   'player.pause': "Pauza",
   'player.back10': "−10 min",

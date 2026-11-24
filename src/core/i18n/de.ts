@@ -138,7 +138,6 @@ export const de: Messages = {
   'player.noChannel': "Kein Sender mit Nummer {n}",
   'player.keysHint': "▲▼ Sender · OK Menü · 0–9 Nummer · Zurück beenden",
   'player.panelKeysHint': "▲▼ bewegen · OK wählen · Zurück ausblenden",
-  'player.timelineHint': "◀ zurück · ▶ vor · OK ab hier ansehen · ▼ Tasten",
   'player.play': "Abspielen",
   'player.pause': "Pause",
   'player.back10': "−10 Min.",

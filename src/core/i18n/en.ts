@@ -136,7 +136,6 @@ export const en = {
   'player.noChannel': "No channel with number {n}",
   'player.keysHint': "▲▼ channel · OK menu · 0–9 number · Back exit",
   'player.panelKeysHint': "▲▼ move · OK choose · Back hide",
-  'player.timelineHint': "◀ rewind · ▶ forward · OK watch from here · ▼ buttons",
   'player.play': "Play",
   'player.pause': "Pause",
   'player.back10': "−10 min",
