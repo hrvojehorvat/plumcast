@@ -124,7 +124,6 @@ function LivePlayer({ session }: { session: LiveSession }) {
   const next = info?.next;
   // What's on now on a channel that records can be watched from its start.
   const restartable = replayDays(channel) > 0 && now ? now : null;
-
   const openArchive = () => {
     livePlayer.close();
     router.push(`/catchup/${encodeURIComponent(channel.id)}`);

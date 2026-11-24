@@ -235,8 +235,9 @@ export function VodPlayer({ session }: { session: VodSession }) {
   const row = [...card, ...actions];
   const hl = splitHighlight(highlight, cardCount);
   const inRow = cardCount > 0 || (overlay && highlight !== -1);
-  // No button highlighted: the remote is on the progress line (◀▶ seek), shown with a focus frame.
-  const onTimeline = overlay && !inRow;
+  // No button highlighted: the remote is on the progress line (◀▶ seek), shown with a focus frame
+  // (not on phones: no remote there).
+  const onTimeline = overlay && !inRow && (Platform.isTV || Platform.OS === 'web');
 
   const onKey = (k: PlayerKey) => {
     switch (k) {
