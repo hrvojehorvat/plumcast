@@ -43,6 +43,7 @@ yarn-error.*
 # Claude Code
 CLAUDE.md
 .ai/
+.claude/
 
 # Screenshots made by dev/screenshots.mjs
 dev/screenshots-out/
