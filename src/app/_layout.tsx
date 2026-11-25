@@ -12,6 +12,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SpatialNavigationRoot, SpatialNavigationView } from 'react-tv-space-navigation';
 import { backAction } from '../core/nav';
 import { playlists } from '../data/store';
+import { useGuideAutoUpdate } from '../guide/useGuideAutoUpdate';
 import { LivePlayerHost } from '../player/LivePlayer';
 import { I18nProvider } from '../ui/i18n';
 import { stepBack } from '../ui/lastKey';
@@ -43,6 +44,7 @@ export default function RootLayout() {
 function Shell() {
   const wide = useWideLayout();
   useSectionBack(wide);
+  useGuideAutoUpdate();
   return (
     <SpatialNavigationRoot>
       <SpatialNavigationView direction={wide ? 'horizontal' : 'vertical'} style={styles.root}>

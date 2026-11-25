@@ -37,6 +37,10 @@ const subscribe = (listener: () => void) => {
   return () => listeners.delete(listener);
 };
 
+/** For code outside React (the TV guide's idle check): the current state and its changes. */
+export const playlistsSnapshot = (): PlaylistState => state;
+export const subscribePlaylists = subscribe;
+
 export function usePlaylists(): PlaylistState {
   return useSyncExternalStore(subscribe, () => state, () => state);
 }

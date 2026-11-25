@@ -6,6 +6,7 @@ import { EMPTY_STATS, type PlaybackStats } from '../core/playbackStats';
 import { usePrefs } from '../data/prefs';
 import { Stats } from './Stats';
 import type { VideoProps } from './types';
+import { useVideoOnScreen } from './videoActivity';
 
 /**
  * Files (movies, episodes, replays) load ahead as far as their buffer level says (src/core/buffer.ts; the
@@ -39,6 +40,7 @@ export function Video({ url, live = true, muted, paused, style, onPlaying, onBuf
   const [stats, setStats] = useState<PlaybackStats>(EMPTY_STATS);
   const started = useRef(false);
   const [mountedAt] = useState(() => Date.now());
+  useVideoOnScreen();
   useEffect(() => {
     if (seek && Number.isFinite(seek.seconds)) ref.current?.seek(Math.max(0, seek.seconds));
   }, [seek]);

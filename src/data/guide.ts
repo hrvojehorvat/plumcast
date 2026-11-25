@@ -2,6 +2,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { useEffect, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 import { createBreather } from '../core/breathe';
+import { shouldAutoUpdate } from '../core/guideIdle';
 import { PlaylistError, toPlaylistError } from '../core/errors';
 import { createUtf8Decoder, XmltvParser } from '../core/xmltv';
 import { xmltvUrl } from '../core/xtream';
@@ -10,6 +11,7 @@ import { clearProgrammeCache, invalidateProgrammes } from './epg';
 import { guideChannelIds, readGuideStatus, saveGuide, type GuideRow, type GuideStatus } from './guideDb';
 import { routeUrl } from './net';
 import { readSecret, type Playlist } from './playlists';
+import { getPrefs } from './prefs';
 import { loginFor } from './session';
 
 /**
@@ -83,14 +85,66 @@ async function loadStatus(playlistId: number) {
   return status;
 }
 
-/** Downloads the guide if it is missing or older than 12 hours (and didn't just fail). */
+/**
+ * Opening the TV guide: downloads the guide if it is missing or older than 12 hours (and didn't just fail).
+ * With "Update automatically" off, only a missing guide is downloaded. Counts as automatic: a video that
+ * starts meanwhile stops it.
+ */
 export async function ensureGuide(playlist: Playlist, now = Date.now()) {
   if (state.syncing) return;
   const status = await loadStatus(playlist.id).catch(() => null);
   const problem = state.problem[playlist.id];
   if (problem && now - problem.at < RETRY_FAILED_MS) return;
-  if (status && now - status.fetchedAt < GUIDE_FRESH_MS) return;
-  await syncGuide(playlist);
+  if (status && (!getPrefs().guideAuto || now - status.fetchedAt < GUIDE_FRESH_MS)) return;
+  await runAuto(playlist);
+}
+
+export interface IdleNow {
+  appActive: boolean;
+  videosOnScreen: number;
+  lastVideoEndedAt: number | null;
+  playlistBusy: boolean;
+}
+
+/** The running download wasn't asked for by the user (so a starting video may stop it). */
+let autoRunning = false;
+
+async function runAuto(playlist: Playlist) {
+  if (state.syncing) return;
+  autoRunning = true;
+  try {
+    await syncGuide(playlist);
+  } finally {
+    autoRunning = false;
+  }
+}
+
+/**
+ * The idle check (src/guide/useGuideAutoUpdate.ts): downloads the guide when the app is idle and the
+ * guide is missing or stale. `idle` is read after the stored status loaded, so a video that started
+ * meanwhile still counts. The rules are in src/core/guideIdle.ts.
+ */
+export async function autoUpdateGuide(playlist: Playlist, idle: () => IdleNow) {
+  const status = await loadStatus(playlist.id).catch(() => null);
+  const now = idle();
+  const go = shouldAutoUpdate({
+    now: Date.now(),
+    enabled: getPrefs().guideAuto,
+    appActive: now.appActive,
+    videosOnScreen: now.videosOnScreen,
+    lastVideoEndedAt: now.lastVideoEndedAt,
+    busy: now.playlistBusy || !!state.syncing,
+    fetchedAt: status?.fetchedAt ?? null,
+    lastFailureAt: state.problem[playlist.id]?.at ?? null,
+    freshMs: GUIDE_FRESH_MS,
+    retryFailedMs: RETRY_FAILED_MS,
+  });
+  if (go) await runAuto(playlist);
+}
+
+/** A video started or the app left the screen: stops a download the user didn't ask for. */
+export function stopAutoUpdate() {
+  if (autoRunning) controller?.abort();
 }
 
 /**

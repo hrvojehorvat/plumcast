@@ -6,6 +6,7 @@ import { webPlayerFor } from '../core/streams';
 import { routeUrl } from '../data/net';
 import { useLatest } from '../ui/useQuery';
 import type { VideoProps } from './types';
+import { useVideoOnScreen } from './videoActivity';
 
 // mpegts.js logs every parser hiccup with console.error, which the dev overlay pops up on
 // screen. Our own error handler below reports what matters (console.warn), so keep it quiet.
@@ -27,6 +28,7 @@ export function Video({ url, muted, live = true, paused, style, onPlaying, onBuf
   const callbacks = useLatest({ onPlaying, onBuffering, onError, onProgress, onEnd, onDuration });
   const pausedRef = useLatest(paused);
   const startRef = useLatest(startAt);
+  useVideoOnScreen();
 
   useEffect(() => {
     const el = ref.current;

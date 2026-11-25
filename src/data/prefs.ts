@@ -18,10 +18,12 @@ export interface Prefs {
   playbackStats: boolean;
   /** How far movies, episodes and replays load ahead: Auto or a fixed level (src/core/buffer.ts). */
   movieBuffer: BufferChoice;
+  /** Updates the TV guide by itself when the app is idle; off = only the Update button and Plum. */
+  guideAuto: boolean;
 }
 
 export const EPG_OFFSET_LIMIT = 12;
-const DEFAULTS: Prefs = { epgOffsetHours: 0, clock24: true, lang: null, streamFormat: 'ts', playbackStats: false, movieBuffer: DEFAULT_BUFFER_CHOICE };
+const DEFAULTS: Prefs = { epgOffsetHours: 0, clock24: true, lang: null, streamFormat: 'ts', playbackStats: false, movieBuffer: DEFAULT_BUFFER_CHOICE, guideAuto: true };
 const KEY = 'prefs';
 
 let prefs: Prefs = DEFAULTS;
@@ -30,6 +32,8 @@ const subscribe = (l: () => void) => {
   listeners.add(l);
   return () => listeners.delete(l);
 };
+
+export const subscribePrefs = subscribe;
 
 export function usePrefs(): Prefs {
   return useSyncExternalStore(subscribe, () => prefs, () => prefs);
@@ -69,5 +73,6 @@ function sanitize(p: Prefs): Prefs {
     streamFormat: p.streamFormat === 'm3u8' ? 'm3u8' : 'ts',
     playbackStats: p.playbackStats === true,
     movieBuffer: isBufferChoice(p.movieBuffer) ? p.movieBuffer : DEFAULT_BUFFER_CHOICE,
+    guideAuto: p.guideAuto !== false,
   };
 }
