@@ -42,6 +42,19 @@ export function GuideSettings({ playlist }: { playlist: Playlist | null }) {
         />
       </View>
 
+      <View style={styles.item}>
+        <Text weight="semibold" size={16}>{t('settings.guideAuto')}</Text>
+        <Text size={13} color={colors.textMuted} style={styles.hint}>{t('settings.guideAutoHint')}</Text>
+        <Segmented<'off' | 'on'>
+          options={[
+            { value: 'off', label: t('settings.statsOff') },
+            { value: 'on', label: t('settings.statsOn') },
+          ]}
+          value={prefs.guideAuto ? 'on' : 'off'}
+          onChange={(v) => void setPrefs({ guideAuto: v === 'on' })}
+        />
+      </View>
+
       {playlist ? <GuideUpdate playlist={playlist} /> : null}
     </View>
   );
